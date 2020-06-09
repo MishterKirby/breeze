@@ -6,7 +6,8 @@ find_package(KF5 REQUIRED COMPONENTS
     GuiAddons
     IconThemes
     ConfigWidgets
-    WindowSystem)
+    WindowSystem
+    IconThemes)
 
 find_package(Qt5 COMPONENTS Quick X11Extras)
 set(BREEZE_HAVE_QTQUICK ${Qt5Quick_FOUND})
@@ -75,8 +76,10 @@ set(breeze_PART_SRCS
     breezestyleplugin.cpp
     breezetileset.cpp
     breezewindowmanager.cpp
+    breezetoolsareamanager.cpp
 )
 
+kconfig_add_kcfg_files(breeze_PART_SRCS ../kdecoration/breezesettings.kcfgc)
 kconfig_add_kcfg_files(breeze_PART_SRCS breezestyleconfigdata.kcfgc)
 add_library(breeze MODULE ${breeze_PART_SRCS})
 target_link_libraries(breeze Qt5::Core Qt5::Gui Qt5::Widgets Qt5::DBus)

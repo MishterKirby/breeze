@@ -13,13 +13,22 @@
 #include <KWindowSystem>
 
 #include <QApplication>
+#include <QDBusConnection>
+#include <QFileInfo>
 #include <QPainter>
+#include <QMainWindow>
+#include <QMenuBar>
+#include <QMdiArea>
+#include <QDockWidget>
+#include <QWindow>
 
 #if BREEZE_HAVE_QTX11EXTRAS
 #include <QX11Info>
 #endif
 
 #include <algorithm>
+#include <QDialog>
+
 
 namespace Breeze
 {
@@ -28,13 +37,22 @@ namespace Breeze
     static const qreal arrowShade = 0.15;
 
     //____________________________________________________________________
-    Helper::Helper( KSharedConfig::Ptr config ):
-        _config( std::move( config ) )
-    {}
+    Helper::Helper( KSharedConfig::Ptr config, QObject *parent ) :
+        QObject ( parent ),
+        _config( std::move( config ) ),
+        _kwinConfig( KSharedConfig::openConfig("kwinrc") ),
+        _decorationConfig( new InternalSettings() )
+    {
+    }
 
     //____________________________________________________________________
     KSharedConfig::Ptr Helper::config() const
     { return _config; }
+
+
+    //____________________________________________________________________
+    QSharedPointer<InternalSettings> Helper::decorationConfig() const
+    { return _decorationConfig; }
 
     //____________________________________________________________________
     void Helper::loadConfig()
@@ -45,11 +63,10 @@ namespace Breeze
         _viewNeutralTextBrush = KStatefulBrush( KColorScheme::View, KColorScheme::NeutralText );
 
         const QPalette palette( QApplication::palette() );
-        const KConfigGroup group( _config->group( "WM" ) );
-        _activeTitleBarColor = group.readEntry( "activeBackground", palette.color( QPalette::Active, QPalette::Highlight ) );
-        _activeTitleBarTextColor = group.readEntry( "activeForeground", palette.color( QPalette::Active, QPalette::HighlightedText ) );
-        _inactiveTitleBarColor = group.readEntry( "inactiveBackground", palette.color( QPalette::Disabled, QPalette::Highlight ) );
-        _inactiveTitleBarTextColor = group.readEntry( "inactiveForeground", palette.color( QPalette::Disabled, QPalette::HighlightedText ) );
+        _config->reparseConfiguration();
+        _kwinConfig->reparseConfiguration();
+        _cachedAutoValid = false;
+        _decorationConfig->load();
     }
 
     //____________________________________________________________________
@@ -1599,5 +1616,220 @@ namespace Breeze
             }
         }
         return pixmap;
+    }
+
+    bool Helper::isInToolsArea(const QWidget* widget) const
+    {
+        if (!shouldDrawToolsArea(widget)) return false;
+
+        auto grabMainWindow = [](const QWidget *widget) {
+            auto window = qobject_cast<QMainWindow*>(widget->window());
+            return window;
+        };
+        auto checkToolbarInToolsArea = [this, grabMainWindow](const QWidget* widget) {
+            auto toolbar = qobject_cast<const QToolBar*>(widget);
+            if (!toolbar) return false;
+
+            QMainWindow* window = grabMainWindow(widget);
+            if (window) {
+                auto rect = toolsAreaToolbarsRect(widget);
+                if (widget->parentWidget() != widget->window()) return false;
+                if (toolbar->isFloating()) return false;
+                if (toolbar->orientation() == Qt::Vertical) return false;
+                if (window->toolBarArea(const_cast<QToolBar*>(toolbar)) != Qt::TopToolBarArea) return false;
+                if (window->width() != rect.width()) return false;
+            }
+
+            return true;
+        };
+        auto checkMenubarInToolsArea = [grabMainWindow](const QWidget *widget) {
+            QMainWindow* window = grabMainWindow(widget);
+            if (window) {
+                if (window->menuWidget() == widget) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        if (!widget) return false;
+
+        if (!widget->isVisible()) {
+            return false;
+        }
+        if (widget->window()->windowType() == Qt::Dialog) {
+            return false;
+        }
+
+        auto parent = widget;
+        while (parent != nullptr) {
+            if (qobject_cast<const QMdiArea*>(parent) || qobject_cast<const QDockWidget*>(parent)) {
+                return false;
+            }
+            if (checkToolbarInToolsArea(parent)) {
+                return true;
+            }
+            if (checkMenubarInToolsArea(parent)) {
+                return true;
+            }
+            parent = parent->parentWidget();
+        }
+
+        return false;
+    }
+
+    QRect Helper::toolsAreaToolbarsRect (const QWidget* widget) const {
+        auto window = qobject_cast<QMainWindow*>(widget->window());
+        if (!window) return QRect();
+
+        auto handle = window->windowHandle();
+        if (handle) {
+            if (_invalidateCachedRects) {
+                _cachedRects.clear();
+                _invalidateCachedRects = false;
+            }
+            auto key = _cachedRects.constFind(handle);
+            if (key != _cachedRects.constEnd()) {
+                return *key;
+            }
+        }
+
+        QList<QToolBar*> widgets = window->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
+        QRect rect = QRect();
+        for (auto toolbar : widgets) {
+            auto isInSubWindow = false;
+            QWidget* parent = toolbar->parentWidget();
+            while (parent != nullptr) {
+                if (qobject_cast<QMdiArea*>(parent) || qobject_cast<QDockWidget*>(parent)) {
+                    isInSubWindow = true;
+                    break;
+                }
+                parent = parent->parentWidget();
+            }
+            if (!isInSubWindow) {
+                if (window->toolBarArea(toolbar) == Qt::TopToolBarArea) {
+                    rect = rect.united(toolbar->geometry());
+                }
+            }
+        }
+        QList<QMenuBar*> menuWidgets = window->findChildren<QMenuBar*>(QString(), Qt::FindDirectChildrenOnly);
+        for (auto menubar : menuWidgets) {
+            rect = rect.united(menubar->geometry());
+        }
+
+        if (handle) {
+            _cachedRects.insert(handle, rect);
+        }
+        return rect;
+    }
+
+    bool Helper::toolsAreaHasToolBar (const QWidget* widget) const {
+        if (!shouldDrawToolsArea(widget)) return false;
+
+        auto mainWindow = qobject_cast<QMainWindow*>(widget->window());
+        if (mainWindow == nullptr) {
+            return false;
+        }
+
+        QList<QToolBar*> widgets = mainWindow->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
+        for (auto widget : widgets) {
+            if (isInToolsArea(widget) == true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    QToolBar* Helper::grabToolBarForToolsArea(const QWidget *widget) const {
+        auto mainWindow = qobject_cast<QMainWindow*>(widget->window());
+        if (mainWindow == nullptr) {
+            return nullptr;
+        }
+
+        QList<QToolBar*> widgets = mainWindow->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
+        for (auto widget : widgets) {
+            if (isInToolsArea(widget)) {
+                return widget;
+            }
+        }
+
+        return nullptr;
+    }
+
+    bool Helper::shouldDrawToolsArea(const QWidget* widget) const {
+        if (!widget) return false;
+        if (!_toolsAreaEnabled) return false;
+        static bool isAuto;
+        static QString borderSize;
+        if (!_cachedAutoValid) {
+            KConfigGroup kdecorationGroup(_kwinConfig->group("org.kde.kdecoration2"));
+            isAuto = kdecorationGroup.readEntry("BorderSizeAuto", true);
+            borderSize = kdecorationGroup.readEntry("BorderSize", "Normal");
+            _cachedAutoValid = true;
+        }
+        if (isAuto) {
+            auto window = widget->window();
+            auto dialogAuto = false;
+            if (qobject_cast<const QDialog*>(widget)) {
+                auto handle = window->windowHandle();
+                if (handle) {
+                    dialogAuto = widget->width() == handle->frameGeometry().width();
+                }
+                return true;
+            }
+            if (window) {
+                auto handle = window->windowHandle();
+                if (handle) {
+                    if (dialogAuto || handle->frameGeometry().width() != toolsAreaToolbarsRect(widget).width()) {
+                        return false;
+                    } else {
+                        auto toolbar = qobject_cast<const QToolBar*>(widget);
+                        if (toolbar) {
+                            if (toolbar->isFloating()) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+        if (borderSize != "None" && borderSize != "NoSides") {
+            return false;
+        }
+        auto toolbar = qobject_cast<const QToolBar*>(widget);
+        if (toolbar) {
+            if (toolbar->isFloating()) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    bool Helper::toolsAreaHasContents(const QWidget* widget) const {
+        QList<QWidget*> widgets = widget->window()->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+        for (auto widget : widgets) {
+            if (isInToolsArea(widget)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    QColor Helper::toolsAreaBorderColor(const QWidget* widget) const {
+        auto scheme = KColorScheme(widget->isActiveWindow() ? widget->isEnabled() ? QPalette::Normal : QPalette::Disabled : QPalette::Inactive, KColorScheme::Header);
+        QColor border(
+            KColorUtils::mix(
+                scheme.background().color(),
+                scheme.foreground().color(),
+                0.2
+            )
+        );
+        border.setAlpha(255);
+        return border;
     }
 }

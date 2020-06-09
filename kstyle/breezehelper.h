@@ -10,11 +10,14 @@
 #include "breeze.h"
 #include "breezemetrics.h"
 #include "breezeanimationdata.h"
+#include "breezesettings.h"
 #include "config-breeze.h"
 
 #include <KColorScheme>
 #include <KSharedConfig>
+#include <KConfigWatcher>
 
+#include <QToolBar>
 #include <QPainterPath>
 #include <QIcon>
 #include <QWidget>
@@ -24,12 +27,14 @@ namespace Breeze
 
     //* breeze style helper class.
     /** contains utility functions used at multiple places in both breeze style and breeze window decoration */
-    class Helper
+    class Helper : public QObject
     {
+        Q_OBJECT
+
         public:
 
         //* constructor
-        explicit Helper( KSharedConfig::Ptr );
+        explicit Helper( KSharedConfig::Ptr, QObject *parent = nullptr );
 
         //* destructor
         virtual ~Helper()
@@ -40,6 +45,9 @@ namespace Breeze
 
         //* pointer to shared config
         KSharedConfig::Ptr config() const;
+
+        //* pointer to kdecoration config
+        QSharedPointer<InternalSettings> decorationConfig() const;
 
         //*@name color utilities
         //@{
@@ -69,11 +77,11 @@ namespace Breeze
 
         //* titlebar color
         const QColor& titleBarColor( bool active ) const
-        { return active ? _activeTitleBarColor:_inactiveTitleBarColor; }
+        { return KColorScheme(active ? QPalette::Normal : QPalette::Inactive, KColorScheme::Header).background().color(); }
 
         //* titlebar text color
         const QColor& titleBarTextColor( bool active ) const
-        { return active ? _activeTitleBarTextColor:_inactiveTitleBarTextColor; }
+        { return KColorScheme(active ? QPalette::Normal : QPalette::Inactive, KColorScheme::Header).foreground().color(); }
 
         //* frame outline color, using animations
         QColor frameOutlineColor( const QPalette&, bool mouseOver = false, bool hasFocus = false, qreal opacity = AnimationData::OpacityInvalid, AnimationMode = AnimationNone ) const;
@@ -255,6 +263,29 @@ namespace Breeze
         //* returns true if a given widget supports alpha channel
         bool hasAlphaChannel( const QWidget* ) const;
 
+        //* returns true if widget is in the tools area
+        bool isInToolsArea( const QWidget* ) const;
+
+        //* returns false if tools area is empty
+        bool toolsAreaHasContents ( const QWidget* ) const;
+
+        //* returns true if tools area has a toolbar
+        bool toolsAreaHasToolBar ( const QWidget* ) const;
+
+        //* returns true if the tools area should be drawn
+        bool shouldDrawToolsArea ( const QWidget* ) const;
+
+        //* returns the tools area border color
+        QColor toolsAreaBorderColor ( const QWidget* ) const;
+
+        //* returns the united rectangle of all toolbars in the tools area
+        QRect toolsAreaToolbarsRect (const QWidget* widget) const;
+
+        QToolBar* grabToolBarForToolsArea ( const QWidget* ) const;
+
+        void setToolsAreaEnabled(bool enabled)
+        { _toolsAreaEnabled = enabled; };
+
         //@}
 
         //* return device pixel ratio for a given pixmap
@@ -287,6 +318,12 @@ namespace Breeze
         //* configuration
         KSharedConfig::Ptr _config;
 
+        //* KWin configuration
+        KSharedConfig::Ptr _kwinConfig;
+
+        //* decoration configuration
+        QSharedPointer<InternalSettings> _decorationConfig;
+
         //*@name brushes
         //@{
         KStatefulBrush _viewFocusBrush;
@@ -295,13 +332,13 @@ namespace Breeze
         KStatefulBrush _viewNeutralTextBrush;
         //@}
 
-        //*@name windeco colors
-        //@{
-        QColor _activeTitleBarColor;
-        QColor _activeTitleBarTextColor;
-        QColor _inactiveTitleBarColor;
-        QColor _inactiveTitleBarTextColor;
-        //@}
+        bool _toolsAreaEnabled;
+
+        mutable QHash<QWindow*,QRect> _cachedRects;
+        mutable bool _invalidateCachedRects;
+        mutable bool _cachedAutoValid = false;
+
+        friend class ToolsAreaManager;
 
     };
 
