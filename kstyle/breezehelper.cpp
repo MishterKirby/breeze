@@ -1618,149 +1618,13 @@ namespace Breeze
         return pixmap;
     }
 
-    bool Helper::isInToolsArea(const QWidget* widget) const
-    {
-        if (!shouldDrawToolsArea(widget)) return false;
-
-        auto grabMainWindow = [](const QWidget *widget) {
-            auto window = qobject_cast<QMainWindow*>(widget->window());
-            return window;
-        };
-        auto checkToolbarInToolsArea = [this, grabMainWindow](const QWidget* widget) {
-            auto toolbar = qobject_cast<const QToolBar*>(widget);
-            if (!toolbar) return false;
-
-            QMainWindow* window = grabMainWindow(widget);
-            if (window) {
-                auto rect = toolsAreaToolbarsRect(widget);
-                if (widget->parentWidget() != widget->window()) return false;
-                if (toolbar->isFloating()) return false;
-                if (toolbar->orientation() == Qt::Vertical) return false;
-                if (window->toolBarArea(const_cast<QToolBar*>(toolbar)) != Qt::TopToolBarArea) return false;
-                if (window->width() != rect.width()) return false;
-            }
-
-            return true;
-        };
-        auto checkMenubarInToolsArea = [grabMainWindow](const QWidget *widget) {
-            QMainWindow* window = grabMainWindow(widget);
-            if (window) {
-                if (window->menuWidget() == widget) {
-                    return true;
-                }
-            }
-
-            return false;
-        };
-
-        if (!widget) return false;
-
-        if (!widget->isVisible()) {
-            return false;
-        }
-        if (widget->window()->windowType() == Qt::Dialog) {
-            return false;
-        }
-
-        auto parent = widget;
-        while (parent != nullptr) {
-            if (qobject_cast<const QMdiArea*>(parent) || qobject_cast<const QDockWidget*>(parent)) {
-                return false;
-            }
-            if (checkToolbarInToolsArea(parent)) {
-                return true;
-            }
-            if (checkMenubarInToolsArea(parent)) {
-                return true;
-            }
-            parent = parent->parentWidget();
-        }
-
-        return false;
-    }
-
-    QRect Helper::toolsAreaToolbarsRect (const QWidget* widget) const {
-        auto window = qobject_cast<QMainWindow*>(widget->window());
-        if (!window) return QRect();
-
-        auto handle = window->windowHandle();
-        if (handle) {
-            if (_invalidateCachedRects) {
-                _cachedRects.clear();
-                _invalidateCachedRects = false;
-            }
-            auto key = _cachedRects.constFind(handle);
-            if (key != _cachedRects.constEnd()) {
-                return *key;
-            }
-        }
-
-        QList<QToolBar*> widgets = window->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
-        QRect rect = QRect();
-        for (auto toolbar : widgets) {
-            auto isInSubWindow = false;
-            QWidget* parent = toolbar->parentWidget();
-            while (parent != nullptr) {
-                if (qobject_cast<QMdiArea*>(parent) || qobject_cast<QDockWidget*>(parent)) {
-                    isInSubWindow = true;
-                    break;
-                }
-                parent = parent->parentWidget();
-            }
-            if (!isInSubWindow) {
-                if (window->toolBarArea(toolbar) == Qt::TopToolBarArea) {
-                    rect = rect.united(toolbar->geometry());
-                }
-            }
-        }
-        QList<QMenuBar*> menuWidgets = window->findChildren<QMenuBar*>(QString(), Qt::FindDirectChildrenOnly);
-        for (auto menubar : menuWidgets) {
-            rect = rect.united(menubar->geometry());
-        }
-
-        if (handle) {
-            _cachedRects.insert(handle, rect);
-        }
-        return rect;
-    }
-
-    bool Helper::toolsAreaHasToolBar (const QWidget* widget) const {
-        if (!shouldDrawToolsArea(widget)) return false;
-
-        auto mainWindow = qobject_cast<QMainWindow*>(widget->window());
-        if (mainWindow == nullptr) {
-            return false;
-        }
-
-        QList<QToolBar*> widgets = mainWindow->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
-        for (auto widget : widgets) {
-            if (isInToolsArea(widget) == true) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    QToolBar* Helper::grabToolBarForToolsArea(const QWidget *widget) const {
-        auto mainWindow = qobject_cast<QMainWindow*>(widget->window());
-        if (mainWindow == nullptr) {
-            return nullptr;
-        }
-
-        QList<QToolBar*> widgets = mainWindow->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
-        for (auto widget : widgets) {
-            if (isInToolsArea(widget)) {
-                return widget;
-            }
-        }
-
-        return nullptr;
-    }
-
     bool Helper::shouldDrawToolsArea(const QWidget* widget) const {
-        if (!widget) return false;
-        if (!_toolsAreaEnabled) return false;
+        if (!widget) {
+            return false;
+        }
+        if (!_toolsAreaEnabled) {
+            return false;
+        }
         static bool isAuto;
         static QString borderSize;
         if (!_cachedAutoValid) {
@@ -1782,7 +1646,7 @@ namespace Breeze
             if (window) {
                 auto handle = window->windowHandle();
                 if (handle) {
-                    if (dialogAuto || handle->frameGeometry().width() != toolsAreaToolbarsRect(widget).width()) {
+                    if (dialogAuto) {
                         return false;
                     } else {
                         auto toolbar = qobject_cast<const QToolBar*>(widget);
@@ -1808,16 +1672,6 @@ namespace Breeze
             }
         }
         return true;
-    }
-    
-    bool Helper::toolsAreaHasContents(const QWidget* widget) const {
-        QList<QWidget*> widgets = widget->window()->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
-        for (auto widget : widgets) {
-            if (isInToolsArea(widget)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     QColor Helper::toolsAreaBorderColor(const QWidget* widget) const {

@@ -22,10 +22,32 @@ namespace Breeze {
         void registerWidget(QWidget *widget);
         void unregisterWidget(QWidget *widget);
         void updateAnimations();
+        bool isInToolsArea(const QWidget *widget);
+        void evaluateToolsArea(QMainWindow *window, QWidget *widget, bool forceVisible = false, bool forceInvisible = false);
 
         QColor foreground(const QWidget *widget);
         QColor background(const QWidget *widget);
         QPalette toolsPalette(const QWidget *widget);
+        QRect rect(const QWidget *w) const {
+            auto m = qobject_cast<const QMainWindow*>(w->window());
+            if (m)
+                return rect(m);
+            return QRect();
+        }
+        QRect rect(const QMainWindow *w) const {
+            auto nc = const_cast<QMainWindow*>(w);
+            return _rects[nc];
+        }
+        bool hasContents(const QWidget *w) const {
+            auto m = qobject_cast<QMainWindow*>(w->window());
+            if (m)
+                return hasContents(m);
+            return false;
+        }
+        bool hasContents(const QMainWindow *w) const {
+            auto nc = const_cast<QMainWindow*>(w);
+            return _toolsArea[nc].length() > 0;
+        }
 
         bool widgetHasCorrectPaletteSet(const QWidget *widget);
 
@@ -34,6 +56,9 @@ namespace Breeze {
 
     Q_SIGNALS:
         void toolbarUpdated();
+
+    public Q_SLOTS:
+        void recomputeRect(QMainWindow *w);
 
     private:
         void registerWindow ( QWindow *window );
@@ -44,6 +69,8 @@ namespace Breeze {
         QList<QMetaObject::Connection> _connections;
         Helper* _helper;
 
+        QMap<QMainWindow*,QList<QWidget*>> _toolsArea;
+        QMap<QMainWindow*,QRect> _rects;
         QMap<QWindow*,ToolsAreaAnimation> animationMap;
     };
 }

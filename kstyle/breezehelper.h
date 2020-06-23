@@ -263,25 +263,11 @@ namespace Breeze
         //* returns true if a given widget supports alpha channel
         bool hasAlphaChannel( const QWidget* ) const;
 
-        //* returns true if widget is in the tools area
-        bool isInToolsArea( const QWidget* ) const;
-
-        //* returns false if tools area is empty
-        bool toolsAreaHasContents ( const QWidget* ) const;
-
-        //* returns true if tools area has a toolbar
-        bool toolsAreaHasToolBar ( const QWidget* ) const;
-
         //* returns true if the tools area should be drawn
         bool shouldDrawToolsArea ( const QWidget* ) const;
 
         //* returns the tools area border color
         QColor toolsAreaBorderColor ( const QWidget* ) const;
-
-        //* returns the united rectangle of all toolbars in the tools area
-        QRect toolsAreaToolbarsRect (const QWidget* widget) const;
-
-        QToolBar* grabToolBarForToolsArea ( const QWidget* ) const;
 
         void setToolsAreaEnabled(bool enabled)
         { _toolsAreaEnabled = enabled; };

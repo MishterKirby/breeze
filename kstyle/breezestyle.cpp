@@ -915,7 +915,8 @@ namespace Breeze
             parent = parent->parentWidget();
         }
         if (qobject_cast<const QMainWindow*>(widget) || qobject_cast<const QDialog*> (widget)) {
-            if (!_helper->toolsAreaHasContents(widget) && _helper->shouldDrawToolsArea(widget)) {
+            if (!_toolsAreaManager->hasContents(widget) && _helper->shouldDrawToolsArea(widget)) {
+                qDebug() << _toolsAreaManager->hasContents(widget) << _helper->shouldDrawToolsArea(widget);
                 painter->save();
                 painter->setPen(_helper->toolsAreaBorderColor(widget));
                 painter->setRenderHints(QPainter::Antialiasing, false);
@@ -929,7 +930,8 @@ namespace Breeze
                 );
                 painter->restore();
             } else if (_helper->shouldDrawToolsArea(widget)) {
-                auto rect = _helper->toolsAreaToolbarsRect(widget);
+                auto rect = _toolsAreaManager->rect(widget);
+                qDebug() << widget << rect;
 
                 painter->save();
                 {
@@ -4490,7 +4492,7 @@ namespace Breeze
 
             auto palette = option->palette;
 
-            if (_helper->isInToolsArea(widget)) {
+            if (_toolsAreaManager->isInToolsArea(widget)) {
                 palette = _toolsAreaManager->toolsPalette(widget);
             }
 
@@ -4508,7 +4510,7 @@ namespace Breeze
 
             auto palette = option->palette;
 
-            if (_helper->isInToolsArea(widget)) {
+            if (_toolsAreaManager->isInToolsArea(widget)) {
                 palette = _toolsAreaManager->toolsPalette(widget);
             }
 
@@ -4669,7 +4671,7 @@ namespace Breeze
         const auto& rect( option->rect );
         auto palette( option->palette );
 
-        if (_helper->isInToolsArea(widget)) {
+        if (_toolsAreaManager->isInToolsArea(widget)) {
             palette = _toolsAreaManager->toolsPalette(widget);
         }
 
@@ -4998,7 +5000,7 @@ namespace Breeze
         Q_UNUSED(painter)
         auto toolbar = const_cast<QWidget*>(widget);
 
-        if (!_helper->isInToolsArea(widget)) {
+        if (!_toolsAreaManager->isInToolsArea(widget)) {
             if (_toolsAreaManager->widgetHasCorrectPaletteSet(toolbar)) {
                 toolbar->setPalette(toolbar->parentWidget()->palette());
             }

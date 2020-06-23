@@ -5,7 +5,10 @@
 #include <QWindow>
 #include <QMainWindow>
 #include <QMoveEvent>
+#include <QMenuBar>
+#include <QMdiArea>
 #include <QDebug>
+#include "signal.h"
 
 namespace Breeze {
     ToolsAreaManager::ToolsAreaManager(Helper *helper, QObject *parent) : QObject(parent), _helper(helper) {}
@@ -147,16 +150,123 @@ namespace Breeze {
         }
     }
 
+    void ToolsAreaManager::evaluateToolsArea(QMainWindow *window, QWidget *widget, bool forceVisible, bool forceInvisible)
+    {
+        Q_ASSERT(window);
+        Q_ASSERT(widget);
+
+        if (!_helper->shouldDrawToolsArea(widget)) {
+            return;
+        }
+
+        auto checkToolbarInToolsArea = [this, window](const QWidget* widget) {
+            auto toolbar = qobject_cast<const QToolBar*>(widget);
+            if (!toolbar) return false;
+
+            if (window) {
+                if (widget->parentWidget() != widget->window()) return false;
+                if (toolbar->isFloating()) return false;
+                if (toolbar->orientation() == Qt::Vertical) return false;
+                if (window->toolBarArea(const_cast<QToolBar*>(toolbar)) != Qt::TopToolBarArea) return false;
+            }
+
+            return true;
+        };
+        auto checkMenubarInToolsArea = [window](const QWidget *widget) {
+            if (window) {
+                if (window->menuWidget() == widget) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        if ((forceInvisible || !widget->isVisible()) && !forceVisible) {
+            return;
+        }
+        if (widget->window()->windowType() == Qt::Dialog) {
+            return;
+        }
+
+        auto parent = widget;
+        while (parent != nullptr) {
+            if (qobject_cast<const QMdiArea*>(parent) || qobject_cast<const QDockWidget*>(parent)) {
+                return;
+            }
+            if (checkToolbarInToolsArea(parent)) {
+                _toolsArea[window] << widget;
+                return;
+            }
+            if (checkMenubarInToolsArea(parent)) {
+                _toolsArea[window] << widget;
+                return;
+            }
+            parent = parent->parentWidget();
+        }
+    }
+
     bool ToolsAreaManager::eventFilter(QObject *watched, QEvent *event)
     {
-        Q_UNUSED(watched)
-        if (event->type() == QEvent::Move) {
-            auto moveEvent = static_cast<QMoveEvent*>(event);
-            if (moveEvent->oldPos() != moveEvent->pos()) {
-                Q_EMIT toolbarUpdated();
+        if (qobject_cast<QToolBar*>(watched)) {
+            if (event->type() == QEvent::Move) {
+                auto moveEvent = static_cast<QMoveEvent*>(event);
+                if (moveEvent->oldPos() != moveEvent->pos()) {
+                    Q_EMIT toolbarUpdated();
+                }
+            }
+        } else if (qobject_cast<QMainWindow*>(watched)) {
+            if (event->type() == QEvent::ChildAdded) {
+                auto ev = static_cast<QChildEvent*>(event);
+                auto wi = qobject_cast<QMainWindow*>(watched);
+                auto wd = qobject_cast<QWidget*>(ev->child());
+                if (wd) {
+                    evaluateToolsArea(wi, wd);
+                    recomputeRect(wi);
+                }
+            }
+            if (event->type() == QEvent::ChildRemoved) {
+                auto ev = static_cast<QChildEvent*>(event);
+                auto wi = qobject_cast<QMainWindow*>(watched);
+                auto wd = qobject_cast<QWidget*>(ev->child());
+                if (wd) {
+                    _toolsArea[wi].removeAll(wd);
+                    recomputeRect(wi);
+                }
+            }
+        } else if (qobject_cast<QWidget*>(watched)) {
+            if (event->type() == QEvent::Show || event->type() == QEvent::Hide) {
+                auto widget = qobject_cast<QWidget*>(watched);
+                auto window = qobject_cast<QMainWindow*>(widget->window());
+                if (event->type() == QEvent::Show) {
+                    evaluateToolsArea(window, widget, true);
+                } else {
+                    evaluateToolsArea(window, widget, false, true);
+                }
+                recomputeRect(window);
             }
         }
         return false;
+    }
+
+    void ToolsAreaManager::recomputeRect(QMainWindow *w)
+    {
+        QList<QToolBar*> widgets = w->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
+        QRect rect = QRect();
+        for (auto widget : _toolsArea[w]) {
+            rect = rect.united(widget->geometry());
+        }
+        _rects[w] = rect;
+    }
+
+    bool ToolsAreaManager::isInToolsArea(const QWidget *widget)
+    {
+        auto nc = const_cast<QWidget*>(widget);
+        auto win = qobject_cast<QMainWindow*>(nc->window());
+        if (!win) {
+            return false;
+        }
+        return _toolsArea[win].contains(nc);
     }
 
     void ToolsAreaManager::registerWidget(QWidget *widget)
@@ -172,12 +282,25 @@ namespace Breeze {
         if (window) {
             _connections << connect(this, &ToolsAreaManager::toolbarUpdated,
                     window, [this, window]() {
-                        if (_helper->toolsAreaHasContents(window)) {
+                        if (hasContents(window)) {
                             window->setContentsMargins(0,0,0,0);
                         } else {
                             window->setContentsMargins(0,1,0,0);
                         }
                     });
+            if (!window->property("__breezeEventFilter").isValid()) {
+                window->setProperty("__breezeEventFilter", true);
+                window->installEventFilter(this);
+            }
+        }
+        if (!window) {
+            window = qobject_cast<QMainWindow*>(widget->window());
+            evaluateToolsArea(window, widget);
+            recomputeRect(window);
+            if (!widget->property("__breezeEventFilter").isValid()) {
+                widget->setProperty("__breezeEventFilter", true);
+                widget->installEventFilter(this);
+            }
         }
         _connections << connect(this, &ToolsAreaManager::toolbarUpdated,
                 widget, [widget, this]() {
@@ -195,8 +318,8 @@ namespace Breeze {
         if (toolbar) {
             _connections << connect(this, &ToolsAreaManager::toolbarUpdated,
                     widget, [=]() {
-                        const auto rect = _helper->toolsAreaToolbarsRect(widget);
-                        if (rect.bottom() != widget->geometry().bottom()) {
+                        const auto wrect = rect(widget);
+                        if (wrect.bottom() != widget->geometry().bottom()) {
                             toolbar->setContentsMargins(0,0,0,0);
                         } else {
                             toolbar->setContentsMargins(0,0,0,4);
@@ -215,6 +338,7 @@ namespace Breeze {
                         emit toolbarUpdated();
                     });
             if (!toolbar->property("__breezeEventFilter").isValid()) {
+                toolbar->setProperty("__breezeEventFilter", true);
                 toolbar->installEventFilter(this);
             }
         }
@@ -242,6 +366,7 @@ namespace Breeze {
         if (qobject_cast<QToolBar*>(widget)) {
             widget->setContentsMargins(0,0,0,0);
             if (widget->property("__breezeEventFilter").isValid()) {
+                widget->setProperty("__breezeEventFilter", QVariant());
                 widget->removeEventFilter(this);
             }
         }
