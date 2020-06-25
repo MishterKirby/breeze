@@ -916,7 +916,6 @@ namespace Breeze
         }
         if (qobject_cast<const QMainWindow*>(widget) || qobject_cast<const QDialog*> (widget)) {
             if (!_toolsAreaManager->hasContents(widget) && _helper->shouldDrawToolsArea(widget)) {
-                qDebug() << _toolsAreaManager->hasContents(widget) << _helper->shouldDrawToolsArea(widget);
                 painter->save();
                 painter->setPen(_helper->toolsAreaBorderColor(widget));
                 painter->setRenderHints(QPainter::Antialiasing, false);
@@ -931,11 +930,9 @@ namespace Breeze
                 painter->restore();
             } else if (_helper->shouldDrawToolsArea(widget)) {
                 auto rect = _toolsAreaManager->rect(widget);
-                qDebug() << widget << rect;
 
                 painter->save();
                 {
-                    qDebug() << _toolsAreaManager->background(widget);
                     painter->setBrush(_toolsAreaManager->background(widget));
                     painter->setPen(Qt::NoPen);
 

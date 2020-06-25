@@ -316,6 +316,7 @@ namespace Breeze {
                 });
         auto toolbar = qobject_cast<QToolBar*>(widget);
         if (toolbar) {
+            evaluateToolsArea(window, widget);
             _connections << connect(this, &ToolsAreaManager::toolbarUpdated,
                     widget, [=]() {
                         const auto wrect = rect(widget);
@@ -326,15 +327,18 @@ namespace Breeze {
                         }
                     });
             _connections << connect(toolbar, &QToolBar::visibilityChanged,
-                    this, [this]() {
+                    this, [this, window, widget]() {
+                        evaluateToolsArea(window, widget);
                         emit toolbarUpdated();
                     });
             _connections << connect(toolbar, &QToolBar::orientationChanged,
-                    this, [this]() {
+                    this, [this, window, widget]() {
+                        evaluateToolsArea(window, widget);
                         emit toolbarUpdated();
                     });
             _connections << connect(toolbar, &QToolBar::topLevelChanged,
-                    this, [this]() {
+                    this, [this, window, widget]() {
+                        evaluateToolsArea(window, widget);
                         emit toolbarUpdated();
                     });
             if (!toolbar->property("__breezeEventFilter").isValid()) {
