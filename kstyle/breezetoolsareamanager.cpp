@@ -152,8 +152,12 @@ namespace Breeze {
 
     void ToolsAreaManager::evaluateToolsArea(QMainWindow *window, QWidget *widget, bool forceVisible, bool forceInvisible)
     {
-        Q_ASSERT(window);
-        Q_ASSERT(widget);
+        if (!window) {
+            return;
+        }
+        if (!widget) {
+            return;
+        }
 
         if (!_helper->shouldDrawToolsArea(widget)) {
             return;
