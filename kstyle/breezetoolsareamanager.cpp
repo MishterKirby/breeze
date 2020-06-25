@@ -8,10 +8,21 @@
 #include <QMenuBar>
 #include <QMdiArea>
 #include <QDebug>
+#include <QTimer>
 #include "signal.h"
 
 namespace Breeze {
-    ToolsAreaManager::ToolsAreaManager(Helper *helper, QObject *parent) : QObject(parent), _helper(helper) {}
+    ToolsAreaManager::ToolsAreaManager(Helper *helper, QObject *parent) : QObject(parent), _timer(new QTimer(this)), _helper(helper) {
+        _timer->setInterval(10);
+        _timer->setSingleShot(true);
+        _timer->callOnTimeout([=]() {
+            for (auto &x: _toolsArea.keys()) {
+                for (auto &w: _toolsArea[x]->widgets) {
+                    w->update();
+                }
+            }
+        });
+    }
 
     ToolsAreaManager::~ToolsAreaManager() {
         for (auto &x: _connections) {
@@ -186,6 +197,18 @@ namespace Breeze {
 
             return false;
         };
+        auto checkWidgetInToolsArea = [window](QWidget *widget) {
+            if (widget->geometry().y() == 0) {
+                return true;
+            }
+
+            auto docked = qobject_cast<QDockWidget*>(widget);
+            if (!docked) {
+                return false;
+            }
+
+            return window->dockWidgetArea(docked) == Qt::TopDockWidgetArea;
+        };
 
         if ((forceInvisible || !widget->isVisible()) && !forceVisible) {
             getWidgetList(window)->remove(widget);
@@ -207,6 +230,10 @@ namespace Breeze {
                 return;
             }
             if (checkMenubarInToolsArea(parent)) {
+                getWidgetList(window)->insert(widget);
+                return;
+            }
+            if (checkWidgetInToolsArea(parent)) {
                 getWidgetList(window)->insert(widget);
                 return;
             }
@@ -277,6 +304,7 @@ namespace Breeze {
             }
         }
         _rects[w] = rect;
+        _timer->start();
     }
 
     bool ToolsAreaManager::isInToolsArea(const QWidget *widget)
@@ -347,8 +375,8 @@ namespace Breeze {
                         }
                     });
             _connections << connect(toolbar, &QToolBar::visibilityChanged,
-                    this, [this, window, widget]() {
-                        evaluateToolsArea(window, widget);
+                    this, [this, window, widget](bool visible) {
+                        evaluateToolsArea(window, widget, visible, !visible);
                         emit toolbarUpdated();
                     });
             _connections << connect(toolbar, &QToolBar::orientationChanged,
@@ -371,6 +399,7 @@ namespace Breeze {
                     unregisterWidget(widget);
                 });
         registerAnimation(widget);
+        _timer->start();
         _registeredWidgets << widget;
         emit toolbarUpdated();
     }
@@ -408,5 +437,6 @@ namespace Breeze {
         for (auto entry : toRemove) {
             animationMap.remove(entry);
         }
+        _timer->start();
     }
 }

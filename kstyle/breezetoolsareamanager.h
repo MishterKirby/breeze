@@ -89,6 +89,7 @@ namespace Breeze {
         QSet<QWidget*> _registeredWidgets;
         QSet<QWindow*> _registeredWindows;
         QList<QMetaObject::Connection> _connections;
+        QTimer* _timer;
         Helper* _helper;
 
         QMap<QMainWindow*,WidgetList*> _toolsArea;
