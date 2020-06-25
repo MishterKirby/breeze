@@ -12,7 +12,7 @@ namespace Breeze {
         Q_OBJECT
 
     public:
-        QList<QWidget*> widgets;
+        QList<QWidget*> widgets = QList<QWidget*>();
 
         void widgetRemoved() {
             auto widget = qobject_cast<QWidget*>(sender());
