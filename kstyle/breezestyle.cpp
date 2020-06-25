@@ -4489,7 +4489,7 @@ namespace Breeze
 
             auto palette = option->palette;
 
-            if (_toolsAreaManager->isInToolsArea(widget)) {
+            if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
                 palette = _toolsAreaManager->toolsPalette(widget);
             }
 
@@ -4507,7 +4507,7 @@ namespace Breeze
 
             auto palette = option->palette;
 
-            if (_toolsAreaManager->isInToolsArea(widget)) {
+            if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
                 palette = _toolsAreaManager->toolsPalette(widget);
             }
 
@@ -4668,7 +4668,7 @@ namespace Breeze
         const auto& rect( option->rect );
         auto palette( option->palette );
 
-        if (_toolsAreaManager->isInToolsArea(widget)) {
+        if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
             palette = _toolsAreaManager->toolsPalette(widget);
         }
 
@@ -4997,11 +4997,13 @@ namespace Breeze
         Q_UNUSED(painter)
         auto toolbar = const_cast<QWidget*>(widget);
 
-        if (!_toolsAreaManager->isInToolsArea(widget)) {
-            if (_toolsAreaManager->widgetHasCorrectPaletteSet(toolbar)) {
-                toolbar->setPalette(toolbar->parentWidget()->palette());
+        if (!isQtQuickControl(option, widget)) {
+            if (!_toolsAreaManager->isInToolsArea(widget)) {
+                if (_toolsAreaManager->widgetHasCorrectPaletteSet(toolbar)) {
+                    toolbar->setPalette(toolbar->parentWidget()->palette());
+                }
+                return true;
             }
-            return true;
         }
 
         if (!_toolsAreaManager->widgetHasCorrectPaletteSet(widget)) {
