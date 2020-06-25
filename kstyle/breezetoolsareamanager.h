@@ -7,6 +7,28 @@
 #include "breezehelper.h"
 
 namespace Breeze {
+    struct WidgetList : public QObject
+    {
+        Q_OBJECT
+
+    public:
+        QList<QWidget*> widgets;
+
+        void widgetRemoved() {
+            auto widget = qobject_cast<QWidget*>(sender());
+            widgets.removeAll(widget);
+        }
+        void remove(QWidget *widget) {
+            widgets.removeAll(widget);
+            disconnect(widget, &QObject::destroyed, this, &WidgetList::widgetRemoved);
+        }
+        void insert(QWidget *widget) {
+            if (!widgets.contains(widget)) {
+                widgets << widget;
+                connect(widget, &QObject::destroyed, this, &WidgetList::widgetRemoved, Qt::UniqueConnection);
+            }
+        }
+    };
     struct ToolsAreaAnimation {
         QPointer<QVariantAnimation> foregroundColorAnimation;
         QPointer<QVariantAnimation> backgroundColorAnimation;
@@ -46,7 +68,7 @@ namespace Breeze {
         }
         bool hasContents(const QMainWindow *w) const {
             auto nc = const_cast<QMainWindow*>(w);
-            return _toolsArea[nc].length() > 0;
+            return _toolsArea[nc]->widgets.length() > 0;
         }
 
         bool widgetHasCorrectPaletteSet(const QWidget *widget);
@@ -69,7 +91,15 @@ namespace Breeze {
         QList<QMetaObject::Connection> _connections;
         Helper* _helper;
 
-        QMap<QMainWindow*,QList<QWidget*>> _toolsArea;
+        QMap<QMainWindow*,WidgetList*> _toolsArea;
+        WidgetList* getWidgetList(QMainWindow* win) {
+            if (!_toolsArea.contains(win)) {
+                auto list = new WidgetList;
+                _toolsArea[win] = list;
+                return list;
+            }
+            return _toolsArea[win];
+        }
         QMap<QMainWindow*,QRect> _rects;
         QMap<QWindow*,ToolsAreaAnimation> animationMap;
     };
