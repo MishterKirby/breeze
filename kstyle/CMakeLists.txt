@@ -6,8 +6,7 @@ find_package(KF5 REQUIRED COMPONENTS
     GuiAddons
     IconThemes
     ConfigWidgets
-    WindowSystem
-    IconThemes)
+    WindowSystem)
 
 find_package(Qt5 COMPONENTS Quick X11Extras)
 set(BREEZE_HAVE_QTQUICK ${Qt5Quick_FOUND})
