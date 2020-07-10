@@ -180,7 +180,6 @@ namespace Breeze {
             if (!toolbar) return false;
 
             if (window) {
-                if (widget->parentWidget() != widget->window()) return false;
                 if (toolbar->isFloating()) return false;
                 if (toolbar->orientation() == Qt::Vertical) return false;
                 if (window->toolBarArea(const_cast<QToolBar*>(toolbar)) != Qt::TopToolBarArea) return false;
@@ -198,10 +197,6 @@ namespace Breeze {
             return false;
         };
         auto checkWidgetInToolsArea = [window](QWidget *widget) {
-            if (widget->geometry().y() == 0) {
-                return true;
-            }
-
             auto docked = qobject_cast<QDockWidget*>(widget);
             if (!docked) {
                 return false;
