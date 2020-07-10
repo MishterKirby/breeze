@@ -77,11 +77,11 @@ namespace Breeze
 
         //* titlebar color
         const QColor& titleBarColor( bool active ) const
-        { return KColorScheme(active ? QPalette::Normal : QPalette::Inactive, KColorScheme::Header).background().color(); }
+        { return active ? _activeTitleBarColor:_inactiveTitleBarColor; }
 
         //* titlebar text color
         const QColor& titleBarTextColor( bool active ) const
-        { return KColorScheme(active ? QPalette::Normal : QPalette::Inactive, KColorScheme::Header).foreground().color(); }
+        { return active ? _activeTitleBarTextColor : _inactiveTitleBarTextColor; }
 
         //* frame outline color, using animations
         QColor frameOutlineColor( const QPalette&, bool mouseOver = false, bool hasFocus = false, qreal opacity = AnimationData::OpacityInvalid, AnimationMode = AnimationNone ) const;
@@ -316,6 +316,14 @@ namespace Breeze
         KStatefulBrush _viewHoverBrush;
         KStatefulBrush _viewNegativeTextBrush;
         KStatefulBrush _viewNeutralTextBrush;
+        //@}
+
+        //*@name windeco colors
+        //@{
+        QColor _activeTitleBarColor;
+        QColor _activeTitleBarTextColor;
+        QColor _inactiveTitleBarColor;
+        QColor _inactiveTitleBarTextColor;
         //@}
 
         bool _toolsAreaEnabled;

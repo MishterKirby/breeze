@@ -43,6 +43,20 @@ namespace Breeze
         _kwinConfig( KSharedConfig::openConfig("kwinrc") ),
         _decorationConfig( new InternalSettings() )
     {
+        if (qApp) {
+            connect(qApp, &QApplication::paletteChanged, this, [=]() {
+                if (qApp->property("KDE_COLOR_SCHEME_PATH").isValid()) {
+                    const auto path = qApp->property("KDE_COLOR_SCHEME_PATH").toString();
+                    KConfig config(path, KConfig::SimpleConfig);
+                    KConfigGroup group( config.group("WM") );
+                    const QPalette palette( QApplication::palette() );
+                    _activeTitleBarColor = group.readEntry( "activeBackground", palette.color( QPalette::Active, QPalette::Highlight ) );
+                    _activeTitleBarTextColor = group.readEntry( "activeForeground", palette.color( QPalette::Active, QPalette::HighlightedText ) );
+                    _inactiveTitleBarColor = group.readEntry( "inactiveBackground", palette.color( QPalette::Disabled, QPalette::Highlight ) );
+                    _inactiveTitleBarTextColor = group.readEntry( "inactiveForeground", palette.color( QPalette::Disabled, QPalette::HighlightedText ) );
+                }
+            });
+        }
     }
 
     //____________________________________________________________________
@@ -67,6 +81,14 @@ namespace Breeze
         _kwinConfig->reparseConfiguration();
         _cachedAutoValid = false;
         _decorationConfig->load();
+
+        KConfig config(qApp->property("KDE_COLOR_SCHEME_PATH").toString(), KConfig::SimpleConfig);
+        KConfigGroup appGroup( config.group("WM") );
+        KConfigGroup globalGroup( _config->group("WM") );
+        _activeTitleBarColor = appGroup.readEntry( "activeBackground", globalGroup.readEntry( "activeBackground", palette.color( QPalette::Active, QPalette::Highlight ) ) );
+        _activeTitleBarTextColor = appGroup.readEntry( "activeForeground", globalGroup.readEntry( "activeForeground", palette.color( QPalette::Active, QPalette::HighlightedText ) ) );
+        _inactiveTitleBarColor = appGroup.readEntry( "inactiveBackground", globalGroup.readEntry( "inactiveBackground", palette.color( QPalette::Disabled, QPalette::Highlight ) ) );
+        _inactiveTitleBarTextColor = appGroup.readEntry( "inactiveForeground", globalGroup.readEntry( "inactiveForeground", palette.color( QPalette::Disabled, QPalette::HighlightedText ) ) );
     }
 
     //____________________________________________________________________
@@ -1675,11 +1697,10 @@ namespace Breeze
     }
 
     QColor Helper::toolsAreaBorderColor(const QWidget* widget) const {
-        auto scheme = KColorScheme(widget->isActiveWindow() ? widget->isEnabled() ? QPalette::Normal : QPalette::Disabled : QPalette::Inactive, KColorScheme::Header);
         QColor border(
             KColorUtils::mix(
-                scheme.background().color(),
-                scheme.foreground().color(),
+                titleBarColor(widget->isActiveWindow()),
+                titleBarTextColor(widget->isActiveWindow()),
                 0.2
             )
         );
