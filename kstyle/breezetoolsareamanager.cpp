@@ -18,6 +18,7 @@ namespace Breeze {
         _timer->callOnTimeout([=]() {
             for (auto &x: _toolsArea.keys()) {
                 for (auto &w: _toolsArea[x]->widgets) {
+                    evaluateToolsArea(x, w);
                     w->update();
                 }
             }
@@ -246,8 +247,10 @@ namespace Breeze {
                 if (moveEvent->oldPos() != moveEvent->pos()) {
                     Q_EMIT toolbarUpdated();
                 }
+                _timer->start();
             }
-        } else if (qobject_cast<QMainWindow*>(watched)) {
+        }
+        if (qobject_cast<QMainWindow*>(watched)) {
             if (event->type() == QEvent::ChildAdded) {
                 auto ev = static_cast<QChildEvent*>(event);
                 auto wi = qobject_cast<QMainWindow*>(watched);
@@ -276,11 +279,13 @@ namespace Breeze {
                     evaluateToolsArea(window, widget, false, true);
                 }
                 recomputeRect(window);
+                _timer->start();
             } else if (event->type() == QEvent::HideToParent || event->type() == QEvent::ShowToParent) {
                 auto widget = qobject_cast<QWidget*>(watched);
                 auto window = qobject_cast<QMainWindow*>(widget->window());
                 evaluateToolsArea(window, widget);
                 recomputeRect(window);
+                _timer->start();
             }
         }
         return false;
