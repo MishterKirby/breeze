@@ -152,7 +152,11 @@ namespace Breeze {
     {
         if (!_registeredWindows.contains(window)) {
             auto geoUpdate = [=]() {
-                _helper->_invalidateCachedRects = true;
+                for (auto main : _toolsArea.keys()) {
+                    if (reinterpret_cast<QObject*>(main->windowHandle()) == window) {
+                        recomputeRect(main);
+                    }
+                }
                 emit toolbarUpdated();
             };
             _connections << connect(window, &QWindow::widthChanged, geoUpdate);
@@ -293,9 +297,10 @@ namespace Breeze {
 
     void ToolsAreaManager::recomputeRect(QMainWindow *w)
     {
-        QList<QToolBar*> widgets = w->findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly);
+        if (!w) return;
         QRect rect = QRect();
-        for (auto widget : getWidgetList(w)->widgets) {
+        auto widgets = getWidgetList(w)->widgets;
+        for (auto widget : widgets) {
             if (widget) {
                 auto widgetRect = widget->geometry();
                 if (widgetRect.isValid()) {
@@ -303,6 +308,7 @@ namespace Breeze {
                 }
             }
         }
+        rect.setWidth(w->width());
         _rects[w] = rect;
         _timer->start();
     }
@@ -357,7 +363,6 @@ namespace Breeze {
                     if (win) {
                         auto handle = win->windowHandle();
                         if (handle) {
-                            _helper->_cachedRects.remove(handle);
                             widget->update();
                         }
                     }

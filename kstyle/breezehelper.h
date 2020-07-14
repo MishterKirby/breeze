@@ -328,8 +328,6 @@ namespace Breeze
 
         bool _toolsAreaEnabled;
 
-        mutable QHash<QWindow*,QRect> _cachedRects;
-        mutable bool _invalidateCachedRects;
         mutable bool _cachedAutoValid = false;
 
         friend class ToolsAreaManager;
