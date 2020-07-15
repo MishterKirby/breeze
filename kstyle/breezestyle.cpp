@@ -4509,6 +4509,7 @@ namespace Breeze
 
             if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
                 palette = _toolsAreaManager->toolsPalette(widget);
+                palette.setColor(QPalette::Disabled, QPalette::WindowText, KColorUtils::mix(palette.color(QPalette::Disabled, QPalette::WindowText), Qt::transparent, 0.15));
             }
 
             painter->setFont(toolButtonOption->font);
@@ -4670,6 +4671,7 @@ namespace Breeze
 
         if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
             palette = _toolsAreaManager->toolsPalette(widget);
+            palette.setColor(QPalette::WindowText, _toolsAreaManager->foreground(widget));
         }
 
         // store state

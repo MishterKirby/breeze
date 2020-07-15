@@ -1697,10 +1697,14 @@ namespace Breeze
     }
 
     QColor Helper::toolsAreaBorderColor(const QWidget* widget) const {
+        auto active = widget->isActiveWindow();
+        if (KWindowSystem::isPlatformX11()) {
+            active = true;
+        }
         QColor border(
             KColorUtils::mix(
-                titleBarColor(widget->isActiveWindow()),
-                titleBarTextColor(widget->isActiveWindow()),
+                titleBarColor(active),
+                titleBarTextColor(active),
                 0.2
             )
         );

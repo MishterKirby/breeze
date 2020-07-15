@@ -9,6 +9,8 @@
 #include <QMdiArea>
 #include <QDebug>
 #include <QTimer>
+#include <KWindowSystem>
+#include <KColorUtils>
 #include "signal.h"
 
 namespace Breeze {
@@ -91,6 +93,9 @@ namespace Breeze {
             _connections << connect(window, &QWindow::activeChanged,
                     this, [=]() {
                         if (animationMap[window].foregroundColorAnimation.isNull() || animationMap[window].backgroundColorAnimation.isNull()) return;
+                        if (KWindowSystem::isPlatformX11()) {
+                            return;
+                        }
 
                         auto prevActive = animationMap[window].prevActive;
                         if (prevActive && !window->isActive()) {
@@ -124,18 +129,31 @@ namespace Breeze {
         return false;
     }
 
+    QColor ToolsAreaManager::opacify(const QWidget *widget, const QColor& in) {
+        if (widget->isEnabled()) {
+            return in;
+        }
+        return KColorUtils::mix(in, Qt::transparent, 0.2);
+    }
+
     QColor ToolsAreaManager::foreground(const QWidget *widget) {
+        if (KWindowSystem::isPlatformX11()) {
+            return opacify(widget, _helper->titleBarTextColor(true));
+        }
         auto window = widget->window()->windowHandle();
         if (window && animationMap.contains(window) && animationMap[window].foregroundColorAnimation) {
-            return animationMap[window].foregroundColorAnimation->currentValue().value<QColor>();
+            return opacify(widget, animationMap[window].foregroundColorAnimation->currentValue().value<QColor>());
         }
         return QColor();
     }
 
     QColor ToolsAreaManager::background(const QWidget *widget) {
+        if (KWindowSystem::isPlatformX11()) {
+            return opacify(widget, _helper->titleBarColor(true));
+        }
         auto window = widget->window()->windowHandle();
         if (window && animationMap.contains(window) && animationMap[window].backgroundColorAnimation) {
-            return animationMap[window].backgroundColorAnimation->currentValue().value<QColor>();
+            return opacify(widget, animationMap[window].backgroundColorAnimation->currentValue().value<QColor>());
         }
         return QColor();
     }

@@ -49,6 +49,7 @@ namespace Breeze {
 
         QColor foreground(const QWidget *widget);
         QColor background(const QWidget *widget);
+        QColor opacify(const QWidget *widget, const QColor& in);
         QPalette toolsPalette(const QWidget *widget);
         QRect rect(const QWidget *w) const {
             auto m = qobject_cast<const QMainWindow*>(w->window());
