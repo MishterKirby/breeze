@@ -46,6 +46,7 @@ namespace Breeze {
         void updateAnimations();
         bool isInToolsArea(const QWidget *widget);
         void evaluateToolsArea(QMainWindow *window, QWidget *widget, bool forceVisible = false, bool forceInvisible = false);
+        QColor toolsAreaBorderColor ( const QWidget* );
 
         QColor foreground(const QWidget *widget);
         QColor background(const QWidget *widget);
@@ -89,6 +90,9 @@ namespace Breeze {
         void registerWindow ( QWindow *window );
         void registerAnimation( QWidget *widget );
         bool animationRunning( const QWidget *widget );
+        void windowStateChanged( QWindow *window, bool active);
+        void windowActiveChanged( QWindow *window );
+        bool windowActive( QWindow *window );
         QSet<QWidget*> _registeredWidgets;
         QSet<QWindow*> _registeredWindows;
         QList<QMetaObject::Connection> _connections;
@@ -105,6 +109,7 @@ namespace Breeze {
             return _toolsArea[win];
         }
         QMap<QMainWindow*,QRect> _rects;
+        QMap<QWindow*,int> _semaphoreishes;
         QMap<QWindow*,ToolsAreaAnimation> animationMap;
     };
 }

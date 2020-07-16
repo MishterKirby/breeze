@@ -112,8 +112,6 @@ namespace Breeze
         else if( _scrollBarSubLineButtons->currentIndex() != StyleConfigData::scrollBarSubLineButtons() ) modified = true;
         else if( _splitterProxyEnabled->isChecked() != StyleConfigData::splitterProxyEnabled() ) modified = true;
         else if( _toolsAreaEnabled->isChecked() != StyleConfigData::toolsAreaEnabled() ) modified = true;
-        else if( _animationsEnabled->isChecked() != StyleConfigData::animationsEnabled() ) modified = true;
-        else if( _animationsDuration->value() != StyleConfigData::animationsDuration() ) modified = true;
         else if( _windowDragMode->currentIndex() != StyleConfigData::windowDragMode() ) modified = true;
         else if( _menuOpacity->value() != StyleConfigData::menuOpacity() ) modified = true;
 

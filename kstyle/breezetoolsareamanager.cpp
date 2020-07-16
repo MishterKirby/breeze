@@ -9,7 +9,6 @@
 #include <QMdiArea>
 #include <QDebug>
 #include <QTimer>
-#include <KWindowSystem>
 #include <KColorUtils>
 #include "signal.h"
 
@@ -94,29 +93,60 @@ namespace Breeze {
 
             _connections << connect(window, &QWindow::activeChanged,
                     this, [=]() {
-                        if (animationMap[window].foregroundColorAnimation.isNull() || animationMap[window].backgroundColorAnimation.isNull()) return;
-                        if (KWindowSystem::isPlatformX11()) {
-                            return;
-                        }
-
-                        auto prevActive = animationMap[window].prevActive;
-                        if (prevActive && !window->isActive()) {
-                            animationMap[window].foregroundColorAnimation->setDirection(QAbstractAnimation::Backward);
-                            animationMap[window].backgroundColorAnimation->setDirection(QAbstractAnimation::Backward);
-
-                            animationMap[window].foregroundColorAnimation->start();
-                            animationMap[window].backgroundColorAnimation->start();
-                        } else if (!prevActive && window->isActive()) {
-                            animationMap[window].foregroundColorAnimation->setDirection(QAbstractAnimation::Forward);
-                            animationMap[window].backgroundColorAnimation->setDirection(QAbstractAnimation::Forward);
-
-                            animationMap[window].foregroundColorAnimation->start();
-                            animationMap[window].backgroundColorAnimation->start();
-                        }
-                        animationMap[window].prevActive = window->isActive();
+                        windowActiveChanged(window);
                     });
 
         }
+    }
+
+    void ToolsAreaManager::windowStateChanged(QWindow *window, bool active)
+    {
+        if (animationMap[window].foregroundColorAnimation.isNull() || animationMap[window].backgroundColorAnimation.isNull()) return;
+
+        auto prevActive = animationMap[window].prevActive;
+        if (prevActive && !active) {
+            animationMap[window].foregroundColorAnimation->setDirection(QAbstractAnimation::Backward);
+            animationMap[window].backgroundColorAnimation->setDirection(QAbstractAnimation::Backward);
+
+            animationMap[window].foregroundColorAnimation->start();
+            animationMap[window].backgroundColorAnimation->start();
+        } else if (!prevActive && active) {
+            animationMap[window].foregroundColorAnimation->setDirection(QAbstractAnimation::Forward);
+            animationMap[window].backgroundColorAnimation->setDirection(QAbstractAnimation::Forward);
+
+            animationMap[window].foregroundColorAnimation->start();
+            animationMap[window].backgroundColorAnimation->start();
+        }
+        animationMap[window].prevActive = active;
+    }
+
+    void ToolsAreaManager::windowActiveChanged(QWindow *window)
+    {
+        auto forWindow = window;
+        if (window->parent(QWindow::IncludeTransients)) {
+            forWindow = window->parent(QWindow::IncludeTransients);
+        }
+        if (!_semaphoreishes.contains(forWindow)) {
+            _semaphoreishes[forWindow] = 0;
+        }
+        if (window->isActive()) {
+            _semaphoreishes[forWindow]++;
+        } else {
+            _semaphoreishes[forWindow]--;
+        }
+        if (_semaphoreishes[forWindow] < 0) {
+            _semaphoreishes[forWindow] = 0;
+        }
+        windowStateChanged(forWindow, _semaphoreishes[forWindow] > 0);
+    }
+
+    bool ToolsAreaManager::windowActive( QWindow *window )
+    {
+        auto forWindow = window;
+        if (window->parent(QWindow::IncludeTransients)) {
+            forWindow = window->parent(QWindow::IncludeTransients);
+        }
+        return _semaphoreishes[forWindow] > 0;
     }
 
     bool ToolsAreaManager::animationRunning(const QWidget *widget) {
@@ -139,9 +169,6 @@ namespace Breeze {
     }
 
     QColor ToolsAreaManager::foreground(const QWidget *widget) {
-        if (KWindowSystem::isPlatformX11()) {
-            return opacify(widget, _helper->titleBarTextColor(true));
-        }
         auto window = widget->window()->windowHandle();
         if (window && animationMap.contains(window) && animationMap[window].foregroundColorAnimation) {
             return opacify(widget, animationMap[window].foregroundColorAnimation->currentValue().value<QColor>());
@@ -150,14 +177,24 @@ namespace Breeze {
     }
 
     QColor ToolsAreaManager::background(const QWidget *widget) {
-        if (KWindowSystem::isPlatformX11()) {
-            return opacify(widget, _helper->titleBarColor(true));
-        }
         auto window = widget->window()->windowHandle();
         if (window && animationMap.contains(window) && animationMap[window].backgroundColorAnimation) {
             return opacify(widget, animationMap[window].backgroundColorAnimation->currentValue().value<QColor>());
         }
         return QColor();
+    }
+
+    QColor ToolsAreaManager::toolsAreaBorderColor(const QWidget* widget) {
+        auto active = windowActive(widget->window()->windowHandle());
+        QColor border(
+            KColorUtils::mix(
+                _helper->titleBarColor(active),
+                _helper->titleBarTextColor(active),
+                0.2
+            )
+        );
+        border.setAlpha(255);
+        return border;
     }
 
     QPalette ToolsAreaManager::toolsPalette(const QWidget *widget) {

@@ -266,9 +266,6 @@ namespace Breeze
         //* returns true if the tools area should be drawn
         bool shouldDrawToolsArea ( const QWidget* ) const;
 
-        //* returns the tools area border color
-        QColor toolsAreaBorderColor ( const QWidget* ) const;
-
         void setToolsAreaEnabled(bool enabled)
         { _toolsAreaEnabled = enabled; };
 

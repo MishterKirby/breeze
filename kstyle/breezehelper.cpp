@@ -1695,20 +1695,4 @@ namespace Breeze
         }
         return true;
     }
-
-    QColor Helper::toolsAreaBorderColor(const QWidget* widget) const {
-        auto active = widget->isActiveWindow();
-        if (KWindowSystem::isPlatformX11()) {
-            active = true;
-        }
-        QColor border(
-            KColorUtils::mix(
-                titleBarColor(active),
-                titleBarTextColor(active),
-                0.2
-            )
-        );
-        border.setAlpha(255);
-        return border;
-    }
 }
