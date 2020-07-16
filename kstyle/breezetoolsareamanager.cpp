@@ -25,6 +25,8 @@ namespace Breeze {
                 }
             }
         });
+        connect(this, &ToolsAreaManager::toolbarUpdated, this, &ToolsAreaManager::setWindowMargins);
+        connect(this, &ToolsAreaManager::toolbarUpdated, this, &ToolsAreaManager::rerenderWidgets);
     }
 
     ToolsAreaManager::~ToolsAreaManager() {
@@ -341,6 +343,24 @@ namespace Breeze {
         return getWidgetList(win)->widgets.contains(nc);
     }
 
+    void ToolsAreaManager::setWindowMargins()
+    {
+        for (auto win : _toolsArea.keys()) {
+            if (hasContents(win)) {
+                win->setContentsMargins(0,0,0,0);
+            } else {
+                win->setContentsMargins(0,1,0,0);
+            }
+        }
+    }
+
+    void ToolsAreaManager::rerenderWidgets()
+    {
+        for (auto widget : _registeredWidgets) {
+            widget->update();
+        }
+    }
+
     void ToolsAreaManager::registerWidget(QWidget *widget)
     {
         auto win = widget->window();
@@ -352,14 +372,6 @@ namespace Breeze {
         }
         auto window = qobject_cast<QMainWindow*> (widget);
         if (window) {
-            _connections << connect(this, &ToolsAreaManager::toolbarUpdated,
-                    window, [this, window]() {
-                        if (hasContents(window)) {
-                            window->setContentsMargins(0,0,0,0);
-                        } else {
-                            window->setContentsMargins(0,1,0,0);
-                        }
-                    });
             if (!window->property("__breezeEventFilter").isValid()) {
                 window->setProperty("__breezeEventFilter", true);
                 window->installEventFilter(this);
@@ -374,29 +386,9 @@ namespace Breeze {
                 widget->installEventFilter(this);
             }
         }
-        _connections << connect(this, &ToolsAreaManager::toolbarUpdated,
-                widget, [widget, this]() {
-                    widget->update();
-                    auto win = widget->window();
-                    if (win) {
-                        auto handle = win->windowHandle();
-                        if (handle) {
-                            widget->update();
-                        }
-                    }
-                });
         auto toolbar = qobject_cast<QToolBar*>(widget);
         if (toolbar) {
             evaluateToolsArea(window, widget);
-            _connections << connect(this, &ToolsAreaManager::toolbarUpdated,
-                    widget, [=]() {
-                        const auto wrect = rect(widget);
-                        if (wrect.bottom() != widget->geometry().bottom()) {
-                            toolbar->setContentsMargins(0,0,0,0);
-                        } else {
-                            toolbar->setContentsMargins(0,0,0,4);
-                        }
-                    });
             _connections << connect(toolbar, &QToolBar::visibilityChanged,
                     this, [this, window, widget](bool visible) {
                         evaluateToolsArea(window, widget, visible, !visible);

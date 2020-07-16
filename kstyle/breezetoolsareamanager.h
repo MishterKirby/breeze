@@ -82,6 +82,8 @@ namespace Breeze {
 
     public Q_SLOTS:
         void recomputeRect(QMainWindow *w);
+        void setWindowMargins();
+        void rerenderWidgets();
 
     private:
         void registerWindow ( QWindow *window );
