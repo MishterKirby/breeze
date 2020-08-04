@@ -266,9 +266,6 @@ namespace Breeze
         //* returns true if the tools area should be drawn
         bool shouldDrawToolsArea ( const QWidget* ) const;
 
-        void setToolsAreaEnabled(bool enabled)
-        { _toolsAreaEnabled = enabled; };
-
         //@}
 
         //* return device pixel ratio for a given pixmap
@@ -322,8 +319,6 @@ namespace Breeze
         QColor _inactiveTitleBarColor;
         QColor _inactiveTitleBarTextColor;
         //@}
-
-        bool _toolsAreaEnabled;
 
         mutable bool _cachedAutoValid = false;
 

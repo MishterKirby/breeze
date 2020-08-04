@@ -1644,9 +1644,6 @@ namespace Breeze
         if (!widget) {
             return false;
         }
-        if (!_toolsAreaEnabled) {
-            return false;
-        }
         static bool isAuto;
         static QString borderSize;
         if (!_cachedAutoValid) {
@@ -1686,12 +1683,6 @@ namespace Breeze
         }
         if (borderSize != "None" && borderSize != "NoSides") {
             return false;
-        }
-        auto toolbar = qobject_cast<const QToolBar*>(widget);
-        if (toolbar) {
-            if (toolbar->isFloating()) {
-                return false;
-            }
         }
         return true;
     }

@@ -910,51 +910,33 @@ namespace Breeze
     bool Style::drawWidgetPrimitive( const QStyleOption* option, QPainter* painter, const QWidget* widget ) const {
         Q_UNUSED(option)
         auto parent = widget;
-        while (parent != nullptr) {
-            if (qobject_cast<const QDockWidget*>(parent) || qobject_cast<const QMdiArea*>(parent)) return true;
-            parent = parent->parentWidget();
+        if (!_helper->shouldDrawToolsArea(widget)) {
+            return true;
         }
-        if (qobject_cast<const QMainWindow*>(widget) || qobject_cast<const QDialog*> (widget)) {
-            if (!_toolsAreaManager->hasContents(widget) && _helper->shouldDrawToolsArea(widget)) {
-                painter->save();
-                painter->setPen(_toolsAreaManager->toolsAreaBorderColor(widget));
-                painter->setRenderHints(QPainter::Antialiasing, false);
-                painter->setBrush(Qt::NoBrush);
+        if (auto mw = qobject_cast<const QMainWindow*>(widget)) {
+            painter->save();
 
-                painter->drawLine(
-                    widget->rect().left()*2,
-                    widget->rect().top(),
-                    widget->rect().right()*2,
-                    widget->rect().top()
-                );
+            auto rect = _toolsAreaManager->toolsAreaRect(mw);
+
+            if (rect.height() == 0) {
+                painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette()));
+                painter->drawLine(widget->rect().topLeft(), widget->rect().topRight());
                 painter->restore();
-            } else if (_helper->shouldDrawToolsArea(widget)) {
-                auto rect = _toolsAreaManager->rect(widget);
-
-                painter->save();
-                {
-                    painter->setBrush(_toolsAreaManager->background(widget));
-                    painter->setPen(Qt::NoPen);
-
-                    painter->drawRect(rect);
-                }
-                painter->restore();
-
-                painter->save();
-                {
-                    painter->setPen(_toolsAreaManager->toolsAreaBorderColor(widget));
-                    painter->setBrush(Qt::NoBrush);
-                    painter->setRenderHints(QPainter::Antialiasing, false);
-
-                    painter->drawLine(
-                        rect.left()*2,
-                        rect.bottom(),
-                        rect.right()*2,
-                        rect.bottom()
-                    );
-                }
-                painter->restore();
+                return true;
             }
+
+            painter->setPen(_toolsAreaManager->toolsAreaPalette().background().color());
+            painter->setBrush(_toolsAreaManager->toolsAreaPalette().background());
+            painter->drawRect(rect);
+
+            painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette()));
+            painter->drawLine(rect.bottomLeft(), rect.bottomRight());
+
+            painter->restore();
+        } else if (auto dialog = qobject_cast<const QDialog*>(widget)) {
+            const_cast<QDialog*>(dialog)->setContentsMargins(0,0,0,1);
+            painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette()));
+            painter->drawLine(widget->rect().topLeft(), widget->rect().topRight());
         }
         return true;
     }
@@ -1430,12 +1412,6 @@ namespace Breeze
         // reload configuration
         loadConfiguration();
 
-        // load new titlebar colours into tools area animations
-        _toolsAreaManager->updateAnimations();
-
-        // trigger update of tools area
-        emit _toolsAreaManager->toolbarUpdated();
-
     }
 
     //_____________________________________________________________________
@@ -1527,7 +1503,6 @@ namespace Breeze
 
         // load helper configuration
         _helper->loadConfig();
-        _helper->setToolsAreaEnabled(StyleConfigData::toolsAreaEnabled() );
 
         loadGlobalAnimationSettings();
 
@@ -4489,10 +4464,6 @@ namespace Breeze
 
             auto palette = option->palette;
 
-            if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
-                palette = _toolsAreaManager->toolsPalette(widget);
-            }
-
             const QPixmap pixmap = _helper->coloredIcon(toolButtonOption->icon, palette, iconSize, iconMode, iconState);
             drawItemPixmap( painter, iconRect, Qt::AlignCenter, pixmap );
 
@@ -4506,11 +4477,6 @@ namespace Breeze
             else if( hasFocus&&!mouseOver ) textRole = QPalette::HighlightedText;
 
             auto palette = option->palette;
-
-            if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
-                palette = _toolsAreaManager->toolsPalette(widget);
-                palette.setColor(QPalette::Disabled, QPalette::WindowText, KColorUtils::mix(palette.color(QPalette::Disabled, QPalette::WindowText), Qt::transparent, 0.15));
-            }
 
             painter->setFont(toolButtonOption->font);
             drawItemText( painter, textRect, textFlags, palette, enabled, toolButtonOption->text, textRole );
@@ -4668,11 +4634,6 @@ namespace Breeze
         // copy rect and palette
         const auto& rect( option->rect );
         auto palette( option->palette );
-
-        if (!isQtQuickControl(option, widget) && _toolsAreaManager->isInToolsArea(widget)) {
-            palette = _toolsAreaManager->toolsPalette(widget);
-            palette.setColor(QPalette::WindowText, _toolsAreaManager->foreground(widget));
-        }
 
         // store state
         const State& state( option->state );
@@ -4997,24 +4958,7 @@ namespace Breeze
     {
         Q_UNUSED(option)
         Q_UNUSED(painter)
-        auto toolbar = const_cast<QWidget*>(widget);
-
-        if (!isQtQuickControl(option, widget)) {
-            if (!_toolsAreaManager->isInToolsArea(widget)) {
-                if (_toolsAreaManager->widgetHasCorrectPaletteSet(toolbar)) {
-                    toolbar->setPalette(toolbar->parentWidget()->palette());
-                }
-                return true;
-            }
-        }
-
-        if (!_toolsAreaManager->widgetHasCorrectPaletteSet(widget)) {
-            auto palette = _toolsAreaManager->toolsPalette(widget);
-            palette.setColor( QPalette::Window, _toolsAreaManager->background(widget) );
-            palette.setColor( QPalette::WindowText, _toolsAreaManager->foreground(widget) );
-            toolbar->setPalette(palette);
-        }
-
+        Q_UNUSED(widget)
         return true;
     }
 

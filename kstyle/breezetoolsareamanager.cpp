@@ -1,494 +1,195 @@
 #include "breezetoolsareamanager.h"
-#include <QObject>
-#include <QWidget>
-#include <QToolBar>
-#include <QWindow>
+
 #include <QMainWindow>
-#include <QMoveEvent>
 #include <QMenuBar>
-#include <QMdiArea>
-#include <QDebug>
-#include <QTimer>
+#include <QObject>
+#include <QToolBar>
+#include <QWidget>
+#include <QWindow>
+
 #include <KColorUtils>
-#include "signal.h"
+
+// DON'T MERGE THIS PATCH IF THIS IS STILL HERE
+// THIS IS SO THAT I CAN CHANGE WHETHER I WANT TO
+// RELY ON UNIFIEDTITLEANDTOOLBARONMAC FROM A
+// SINGLE PLACE
+
+#define mergeToolBarHint mainWindow->unifiedTitleAndToolBarOnMac()
+#define mergeToolBarHint true
 
 namespace Breeze {
-    ToolsAreaManager::ToolsAreaManager(Helper *helper, QObject *parent) : QObject(parent), _timer(new QTimer(this)), _helper(helper) {
-        _timer->setInterval(10);
-        _timer->setSingleShot(true);
-        _timer->callOnTimeout([=]() {
-            for (auto &x: _toolsArea.keys()) {
-                for (auto &w: _toolsArea[x]->widgets) {
-                    evaluateToolsArea(x, w);
-                    w->update();
-                }
+    ToolsAreaManager::ToolsAreaManager(Helper *helper, QObject *parent) : QObject(parent), _helper(helper) {}
+
+    ToolsAreaManager::~ToolsAreaManager() {}
+
+    template<class T1, class T2>
+    void appendIfNotAlreadyExists(T1* list, T2 item) {
+        for (auto listItem : *list) {
+            if (listItem == item) {
+                return;
             }
-        });
-        connect(this, &ToolsAreaManager::toolbarUpdated, this, &ToolsAreaManager::setWindowMargins);
-        connect(this, &ToolsAreaManager::toolbarUpdated, this, &ToolsAreaManager::rerenderWidgets);
-    }
-
-    ToolsAreaManager::~ToolsAreaManager() {
-        for (auto &x: _connections) {
-            disconnect(x);
         }
+        list->append(item);
     }
 
-    void ToolsAreaManager::updateAnimations() {
-        for (auto entry : animationMap) {
-            entry.foregroundColorAnimation->setStartValue(_helper->titleBarTextColor(false));
-            entry.foregroundColorAnimation->setEndValue(_helper->titleBarTextColor(true));
-
-            entry.backgroundColorAnimation->setStartValue(_helper->titleBarColor(false));
-            entry.backgroundColorAnimation->setEndValue(_helper->titleBarColor(true));
-            KColorScheme(QPalette::Inactive, KColorScheme::Header);
-
-            entry.foregroundColorAnimation->setDuration(
-                _helper->decorationConfig()->animationsEnabled() ?
-                _helper->decorationConfig()->animationsDuration() :
-                0
-            );
-            entry.backgroundColorAnimation->setDuration(
-                _helper->decorationConfig()->animationsEnabled() ?
-                _helper->decorationConfig()->animationsDuration() :
-                0
-            );
-        }
-    }
-
-    void ToolsAreaManager::registerAnimation(QWidget *widget) {
-        auto window = widget->window()->windowHandle();
-        if (window && !animationMap.contains(window)) {
-
-            auto foregroundColorAnimation = new QVariantAnimation(this);
-            _connections << connect(foregroundColorAnimation, &QVariantAnimation::valueChanged,
-                    this, &ToolsAreaManager::toolbarUpdated);
-
-            auto backgroundColorAnimation = new QVariantAnimation(this);
-            _connections << connect(backgroundColorAnimation, &QVariantAnimation::valueChanged,
-                    this, &ToolsAreaManager::toolbarUpdated);
-
-            foregroundColorAnimation->setStartValue(_helper->titleBarTextColor(false));
-            foregroundColorAnimation->setEndValue(_helper->titleBarTextColor(true));
-
-            backgroundColorAnimation->setStartValue(_helper->titleBarColor(false));
-            backgroundColorAnimation->setEndValue(_helper->titleBarColor(true));
-
-            foregroundColorAnimation->setDuration(
-                _helper->decorationConfig()->animationsEnabled() ?
-                _helper->decorationConfig()->animationsDuration() :
-                0
-            );
-            backgroundColorAnimation->setDuration(
-                _helper->decorationConfig()->animationsEnabled() ?
-                _helper->decorationConfig()->animationsDuration() :
-                0
-            );
-
-            animationMap[window] = ToolsAreaAnimation{
-                foregroundColorAnimation,
-                backgroundColorAnimation,
-                window->isActive(),
-            };
-
-            _connections << connect(window, &QWindow::activeChanged,
-                    this, [=]() {
-                        windowActiveChanged(window);
-                    });
-
-        }
-    }
-
-    void ToolsAreaManager::windowStateChanged(QWindow *window, bool active)
+    QRect ToolsAreaManager::toolsAreaRect(const QMainWindow *window)
     {
-        if (animationMap[window].foregroundColorAnimation.isNull() || animationMap[window].backgroundColorAnimation.isNull()) return;
+        Q_ASSERT(window);
 
-        auto prevActive = animationMap[window].prevActive;
-        if (prevActive && !active) {
-            animationMap[window].foregroundColorAnimation->setDirection(QAbstractAnimation::Backward);
-            animationMap[window].backgroundColorAnimation->setDirection(QAbstractAnimation::Backward);
-
-            animationMap[window].foregroundColorAnimation->start();
-            animationMap[window].backgroundColorAnimation->start();
-        } else if (!prevActive && active) {
-            animationMap[window].foregroundColorAnimation->setDirection(QAbstractAnimation::Forward);
-            animationMap[window].backgroundColorAnimation->setDirection(QAbstractAnimation::Forward);
-
-            animationMap[window].foregroundColorAnimation->start();
-            animationMap[window].backgroundColorAnimation->start();
+        int itemHeight = 0;
+        if (window->menuWidget() && window->menuWidget()->isVisible()) {
+            itemHeight += window->menuWidget()->height();
         }
-        animationMap[window].prevActive = active;
-    }
+        for (auto item : _windows[const_cast<QMainWindow*>(window)]) {
+            if (!item.isNull() && window->toolBarArea(item) == Qt::TopToolBarArea) {
+                itemHeight += item->height();
+            }
+        }
 
-    void ToolsAreaManager::windowActiveChanged(QWindow *window)
-    {
-        auto forWindow = window;
-        if (window->parent(QWindow::IncludeTransients)) {
-            forWindow = window->parent(QWindow::IncludeTransients);
-        }
-        if (!_semaphoreishes.contains(forWindow)) {
-            _semaphoreishes[forWindow] = 0;
-        }
-        if (window->isActive()) {
-            _semaphoreishes[forWindow]++;
+        if (itemHeight == 0) {
+            auto win = const_cast<QMainWindow*>(window);
+            win->setContentsMargins(0, 0, 0, 1);
         } else {
-            _semaphoreishes[forWindow]--;
+            auto win = const_cast<QMainWindow*>(window);
+            win->setContentsMargins(0, 0, 0, 0);
         }
-        if (_semaphoreishes[forWindow] < 0) {
-            _semaphoreishes[forWindow] = 0;
-        }
-        windowStateChanged(forWindow, _semaphoreishes[forWindow] > 0);
+
+        return QRect(0, 0, window->width(), itemHeight);
     }
 
-    bool ToolsAreaManager::windowActive( QWindow *window )
+    bool ToolsAreaManager::tryRegisterToolBar(QPointer<QMainWindow> window, QPointer<QWidget> widget)
     {
-        auto forWindow = window;
-        if (window->parent(QWindow::IncludeTransients)) {
-            forWindow = window->parent(QWindow::IncludeTransients);
-        }
-        return _semaphoreishes[forWindow] > 0;
-    }
+        Q_ASSERT(widget.isNull());
 
-    bool ToolsAreaManager::animationRunning(const QWidget *widget) {
-        auto window = widget->window()->windowHandle();
-        if (window && animationMap.contains(window)) {
-            return (
-                animationMap[window].foregroundColorAnimation->state() == QAbstractAnimation::Running
-                &&
-                animationMap[window].backgroundColorAnimation->state() == QAbstractAnimation::Running
-            );
+        QPointer<QToolBar> toolbar;
+        if (!(toolbar = qobject_cast<QToolBar*>(widget))) return false;
+
+        if (window->toolBarArea(toolbar) == Qt::TopToolBarArea) {
+            appendIfNotAlreadyExists(&_windows[window], toolbar);
+            return true;
         }
+
         return false;
     }
 
-    QColor ToolsAreaManager::opacify(const QWidget *widget, const QColor& in) {
-        if (widget->isEnabled()) {
-            return in;
+    void ToolsAreaManager::tryUnregisterToolBar(QPointer<QMainWindow> window, QPointer<QWidget> widget)
+    {
+        Q_ASSERT(widget.isNull());
+
+        QPointer<QToolBar> toolbar;
+        if (!(toolbar = qobject_cast<QToolBar*>(widget))) return;
+
+        if (window->toolBarArea(toolbar) != Qt::TopToolBarArea) {
+            _windows[window].removeAll(toolbar);
         }
-        return KColorUtils::mix(in, Qt::transparent, 0.2);
     }
 
-    QColor ToolsAreaManager::foreground(const QWidget *widget) {
-        auto window = widget->window()->windowHandle();
-        if (window && animationMap.contains(window) && animationMap[window].foregroundColorAnimation) {
-            return opacify(widget, animationMap[window].foregroundColorAnimation->currentValue().value<QColor>());
+    QPalette ToolsAreaManager::toolsAreaPalette()
+    {
+        static QPalette palette = QPalette();
+        const char* colorProperty = "KDE_COLOR_SCHEME_PATH";
+
+        if (palette != QPalette()) {
+            return palette;
         }
-        return QColor();
-    }
 
-    QColor ToolsAreaManager::background(const QWidget *widget) {
-        auto window = widget->window()->windowHandle();
-        if (window && animationMap.contains(window) && animationMap[window].backgroundColorAnimation) {
-            return opacify(widget, animationMap[window].backgroundColorAnimation->currentValue().value<QColor>());
+        KSharedConfigPtr schemeFile = KSharedConfig::openConfig();
+
+        if (qApp && qApp->property(colorProperty).isValid()) {
+            auto path = qApp->property(colorProperty).toString();
+            schemeFile = KSharedConfig::openConfig(path);
         }
-        return QColor();
-    }
 
-    QColor ToolsAreaManager::toolsAreaBorderColor(const QWidget* widget) {
-        auto active = windowActive(widget->window()->windowHandle());
-        QColor border(
-            KColorUtils::mix(
-                _helper->titleBarColor(active),
-                _helper->titleBarTextColor(active),
-                0.2
-            )
-        );
-        border.setAlpha(255);
-        return border;
-    }
+        KColorScheme scheme(QPalette::Active, KColorScheme::Header, schemeFile);
 
-    QPalette ToolsAreaManager::toolsPalette(const QWidget *widget) {
-        auto color = KColorScheme(widget->isActiveWindow() ? widget->isEnabled() ? QPalette::Normal : QPalette::Disabled : QPalette::Inactive, KColorScheme::Header);
-        QPalette palette = widget->palette();
-        color.adjustForeground(palette);
-        color.adjustBackground(palette);
+        palette = scheme.createApplicationPalette(schemeFile);
+
+        palette.setBrush(QPalette::Active, QPalette::Window, scheme.background());
+        palette.setBrush(QPalette::Active, QPalette::WindowText, scheme.foreground());
+
         return palette;
-    }
-
-    void ToolsAreaManager::registerWindow(QWindow *window)
-    {
-        if (!_registeredWindows.contains(window)) {
-            auto geoUpdate = [=]() {
-                for (auto main : _toolsArea.keys()) {
-                    if (reinterpret_cast<QObject*>(main->windowHandle()) == window) {
-                        recomputeRect(main);
-                    }
-                }
-                emit toolbarUpdated();
-            };
-            _connections << connect(window, &QWindow::widthChanged, geoUpdate);
-            _connections << connect(window, &QWindow::heightChanged, geoUpdate);
-            _connections << connect(window, &QWindow::destroyed, geoUpdate);
-            _registeredWindows << window;
-        }
-    }
-
-    void ToolsAreaManager::evaluateToolsArea(QMainWindow *window, QWidget *widget, bool forceVisible, bool forceInvisible)
-    {
-        if (!window) {
-            return;
-        }
-        if (!widget) {
-            return;
-        }
-
-        if (!_helper->shouldDrawToolsArea(widget)) {
-            getWidgetList(window)->remove(widget);
-            return;
-        }
-
-        auto checkToolbarInToolsArea = [this, window](const QWidget* widget) {
-            auto toolbar = qobject_cast<const QToolBar*>(widget);
-            if (!toolbar) return false;
-
-            if (window) {
-                if (toolbar->isFloating()) return false;
-                if (toolbar->orientation() == Qt::Vertical) return false;
-                if (window->toolBarArea(const_cast<QToolBar*>(toolbar)) != Qt::TopToolBarArea) return false;
-            }
-
-            return true;
-        };
-        auto checkMenubarInToolsArea = [window](const QWidget *widget) {
-            if (window) {
-                if (window->menuWidget() == widget) {
-                    return true;
-                }
-            }
-
-            return false;
-        };
-        auto checkWidgetInToolsArea = [window](QWidget *widget) {
-            auto docked = qobject_cast<QDockWidget*>(widget);
-            if (!docked) {
-                return false;
-            }
-
-            return window->dockWidgetArea(docked) == Qt::TopDockWidgetArea;
-        };
-
-        if ((forceInvisible || !widget->isVisible()) && !forceVisible) {
-            getWidgetList(window)->remove(widget);
-            return;
-        }
-        if (widget->window()->windowType() == Qt::Dialog) {
-            getWidgetList(window)->remove(widget);
-            return;
-        }
-
-        auto parent = widget;
-        while (parent != nullptr) {
-            if (qobject_cast<const QMdiArea*>(parent) || qobject_cast<const QDockWidget*>(parent)) {
-                getWidgetList(window)->remove(widget);
-                return;
-            }
-            if (checkToolbarInToolsArea(parent)) {
-                getWidgetList(window)->insert(widget);
-                return;
-            }
-            if (checkMenubarInToolsArea(parent)) {
-                getWidgetList(window)->insert(widget);
-                return;
-            }
-            if (checkWidgetInToolsArea(parent)) {
-                getWidgetList(window)->insert(widget);
-                return;
-            }
-            parent = parent->parentWidget();
-        }
-
-        getWidgetList(window)->remove(widget);
     }
 
     bool ToolsAreaManager::eventFilter(QObject *watched, QEvent *event)
     {
-        if (qobject_cast<QToolBar*>(watched)) {
-            if (event->type() == QEvent::Move) {
-                auto moveEvent = static_cast<QMoveEvent*>(event);
-                if (moveEvent->oldPos() != moveEvent->pos()) {
-                    Q_EMIT toolbarUpdated();
-                }
-                _timer->start();
+        Q_ASSERT(watched);
+        Q_ASSERT(event);
+
+        QPointer<QObject> parent = watched;
+        QPointer<QMainWindow> mainWindow = nullptr;
+        while (parent != nullptr) {
+            if (qobject_cast<QMainWindow*>(parent)) {
+                mainWindow = qobject_cast<QMainWindow*>(parent);
+                break;
+            }
+            parent = parent->parent();
+        }
+
+        if (QPointer<QMainWindow> mw = qobject_cast<QMainWindow*>(watched)) {
+            QChildEvent *ev;
+            if (event->type() == QEvent::ChildAdded || event->type() == QEvent::ChildRemoved)
+                ev = static_cast<QChildEvent*>(event);
+
+            QPointer<QToolBar> tb = qobject_cast<QToolBar*>(ev->child());
+            if (tb.isNull())
+                return false;
+
+            if (ev->added()) {
+                if (mw->toolBarArea(tb) == Qt::TopToolBarArea)
+                    appendIfNotAlreadyExists(&_windows[mw], tb);
+            } else if (ev->removed()) {
+                _windows[mw].removeAll(tb);
+            }
+        } else if (qobject_cast<QToolBar*>(watched)) {
+            if (!mainWindow.isNull()) {
+                tryUnregisterToolBar(mainWindow, qobject_cast<QWidget*>(watched));
             }
         }
-        if (qobject_cast<QMainWindow*>(watched)) {
-            if (event->type() == QEvent::ChildAdded) {
-                auto ev = static_cast<QChildEvent*>(event);
-                auto wi = qobject_cast<QMainWindow*>(watched);
-                auto wd = qobject_cast<QWidget*>(ev->child());
-                if (wd) {
-                    evaluateToolsArea(wi, wd);
-                    recomputeRect(wi);
-                }
-            }
-            if (event->type() == QEvent::ChildRemoved) {
-                auto ev = static_cast<QChildEvent*>(event);
-                auto wi = qobject_cast<QMainWindow*>(watched);
-                auto wd = qobject_cast<QWidget*>(ev->child());
-                if (wd) {
-                    getWidgetList(wi)->remove(wd);
-                    recomputeRect(wi);
-                }
-            }
-        } else if (qobject_cast<QWidget*>(watched)) {
-            if (event->type() == QEvent::Show || event->type() == QEvent::Hide) {
-                auto widget = qobject_cast<QWidget*>(watched);
-                auto window = qobject_cast<QMainWindow*>(widget->window());
-                if (event->type() == QEvent::Show) {
-                    evaluateToolsArea(window, widget, true);
-                } else {
-                    evaluateToolsArea(window, widget, false, true);
-                }
-                recomputeRect(window);
-                _timer->start();
-            } else if (event->type() == QEvent::HideToParent || event->type() == QEvent::ShowToParent) {
-                auto widget = qobject_cast<QWidget*>(watched);
-                auto window = qobject_cast<QMainWindow*>(widget->window());
-                evaluateToolsArea(window, widget);
-                recomputeRect(window);
-                _timer->start();
-            }
-        }
+
         return false;
-    }
-
-    void ToolsAreaManager::recomputeRect(QMainWindow *w)
-    {
-        if (!w) return;
-        QRect rect = QRect();
-        auto widgets = getWidgetList(w)->widgets;
-        for (auto widget : widgets) {
-            if (widget) {
-                auto widgetRect = widget->geometry();
-                if (widgetRect.isValid()) {
-                    rect = rect.united(widgetRect);
-                }
-            }
-        }
-        rect.setWidth(w->width());
-        _rects[w] = rect;
-        _timer->start();
-    }
-
-    bool ToolsAreaManager::isInToolsArea(const QWidget *widget)
-    {
-        auto nc = const_cast<QWidget*>(widget);
-        auto win = qobject_cast<QMainWindow*>(nc->window());
-        if (!win) {
-            return false;
-        }
-        return getWidgetList(win)->widgets.contains(nc);
-    }
-
-    void ToolsAreaManager::setWindowMargins()
-    {
-        for (auto win : _toolsArea.keys()) {
-            if (hasContents(win)) {
-                win->setContentsMargins(0,0,0,0);
-            } else {
-                win->setContentsMargins(0,1,0,0);
-            }
-        }
-    }
-
-    void ToolsAreaManager::rerenderWidgets()
-    {
-        for (auto widget : _registeredWidgets) {
-            widget->update();
-        }
     }
 
     void ToolsAreaManager::registerWidget(QWidget *widget)
     {
-        auto win = widget->window();
-        if (win) {
-            auto handle = win->windowHandle();
-            if (handle) {
-                registerWindow(handle);
-            }
-        }
-        auto window = qobject_cast<QMainWindow*> (widget);
-        if (window) {
-            if (!window->property("__breezeEventFilter").isValid()) {
-                window->setProperty("__breezeEventFilter", true);
-                window->installEventFilter(this);
-            }
-        }
-        if (!window) {
-            window = qobject_cast<QMainWindow*>(widget->window());
-            evaluateToolsArea(window, widget);
-            recomputeRect(window);
-            if (!widget->property("__breezeEventFilter").isValid()) {
-                widget->setProperty("__breezeEventFilter", true);
-                widget->installEventFilter(this);
-            }
-        }
-        auto toolbar = qobject_cast<QToolBar*>(widget);
-        if (toolbar) {
-            evaluateToolsArea(window, widget);
-            _connections << connect(toolbar, &QToolBar::visibilityChanged,
-                    this, [this, window, widget](bool visible) {
-                        evaluateToolsArea(window, widget, visible, !visible);
-                        emit toolbarUpdated();
-                    });
-            _connections << connect(toolbar, &QToolBar::orientationChanged,
-                    this, [this, window, widget]() {
-                        evaluateToolsArea(window, widget);
-                        emit toolbarUpdated();
-                    });
-            _connections << connect(toolbar, &QToolBar::topLevelChanged,
-                    this, [this, window, widget]() {
-                        evaluateToolsArea(window, widget);
-                        emit toolbarUpdated();
-                    });
-            if (!toolbar->property("__breezeEventFilter").isValid()) {
-                toolbar->setProperty("__breezeEventFilter", true);
-                toolbar->installEventFilter(this);
-            }
-        }
-        _connections << connect(widget, &QObject::destroyed,
-                this, [this, widget]() {
-                    unregisterWidget(widget);
-                });
-        registerAnimation(widget);
-        _timer->start();
-        _registeredWidgets << widget;
-        emit toolbarUpdated();
-    }
+        Q_ASSERT(widget);
+        auto ptr = QPointer<QWidget>(widget);
 
-    bool ToolsAreaManager::widgetHasCorrectPaletteSet(const QWidget *widget)
-    {
-        if (animationRunning(widget)) return true;
-        return (
-            widget->palette().color(QPalette::Window) == background(widget)
-            &&
-            widget->palette().color(QPalette::WindowText) == foreground(widget)
-        );
+        auto parent = ptr;
+        QPointer<QMainWindow> mainWindow = nullptr;
+        while (parent != nullptr) {
+            if (qobject_cast<QMainWindow*>(parent)) {
+                mainWindow = qobject_cast<QMainWindow*>(parent);
+                break;
+            }
+            parent = parent->parentWidget();
+        } if (mainWindow == nullptr || !mergeToolBarHint) {
+            return;
+        }
+
+        if (tryRegisterToolBar(mainWindow, widget)) return;
     }
 
     void ToolsAreaManager::unregisterWidget(QWidget *widget)
     {
-        if (qobject_cast<QToolBar*>(widget)) {
-            widget->setContentsMargins(0,0,0,0);
-            if (widget->property("__breezeEventFilter").isValid()) {
-                widget->setProperty("__breezeEventFilter", QVariant());
-                widget->removeEventFilter(this);
+        Q_ASSERT(widget);
+        auto ptr = QPointer<QWidget>(widget);
+
+        if (QPointer<QMainWindow> window = qobject_cast<QMainWindow*>(ptr)) {
+            _windows.remove(window);
+            return;
+        } else if (QPointer<QToolBar> toolbar = qobject_cast<QToolBar*>(ptr)) {
+            auto parent = ptr;
+            QPointer<QMainWindow> mainWindow = nullptr;
+            while (parent != nullptr) {
+                if (qobject_cast<QMainWindow*>(parent)) {
+                    mainWindow = qobject_cast<QMainWindow*>(parent);
+                    break;
+                }
+                parent = parent->parentWidget();
+            } if (mainWindow == nullptr || !mergeToolBarHint) {
+                return;
             }
+            _windows[mainWindow].removeAll(toolbar);
         }
-        _registeredWidgets.remove(widget);
-        QList<QWindow*> toRemove;
-        for (auto window : animationMap.keys()) {
-            if (std::none_of(_registeredWidgets.begin(), _registeredWidgets.end(), [window](QWidget *widget) {
-                return window == widget->window()->windowHandle();
-            })) {
-                delete animationMap[window].foregroundColorAnimation;
-                delete animationMap[window].backgroundColorAnimation;
-                toRemove << window;
-            }
-        }
-        for (auto entry : toRemove) {
-            animationMap.remove(entry);
-        }
-        _timer->start();
     }
 }

@@ -7,110 +7,30 @@
 #include "breezehelper.h"
 
 namespace Breeze {
-    struct WidgetList : public QObject
-    {
-        Q_OBJECT
-
-    public:
-        QList<QWidget*> widgets = QList<QWidget*>();
-
-        void widgetRemoved() {
-            auto widget = qobject_cast<QWidget*>(sender());
-            widgets.removeAll(widget);
-        }
-        void remove(QWidget *widget) {
-            widgets.removeAll(widget);
-            disconnect(widget, &QObject::destroyed, this, &WidgetList::widgetRemoved);
-        }
-        void insert(QWidget *widget) {
-            if (!widgets.contains(widget)) {
-                widgets << widget;
-                connect(widget, &QObject::destroyed, this, &WidgetList::widgetRemoved, Qt::UniqueConnection);
-            }
-        }
-    };
-    struct ToolsAreaAnimation {
-        QPointer<QVariantAnimation> foregroundColorAnimation;
-        QPointer<QVariantAnimation> backgroundColorAnimation;
-        bool prevActive;
-    };
     class ToolsAreaManager: public QObject
     {
         Q_OBJECT
-    
+
+    private:
+        Helper* _helper;
+        QHash<QMainWindow*,QList<QPointer<QToolBar>>> _windows;
+
+    protected:
+        bool tryRegisterToolBar(QPointer<QMainWindow> window, QPointer<QWidget> widget);
+        void tryUnregisterToolBar(QPointer<QMainWindow> window, QPointer<QWidget> widget);
+
     public:
         explicit ToolsAreaManager(Helper* helper, QObject *parent = nullptr);
         ~ToolsAreaManager();
-        void registerWidget(QWidget *widget);
-        void unregisterWidget(QWidget *widget);
-        void updateAnimations();
-        bool isInToolsArea(const QWidget *widget);
-        void evaluateToolsArea(QMainWindow *window, QWidget *widget, bool forceVisible = false, bool forceInvisible = false);
-        QColor toolsAreaBorderColor ( const QWidget* );
 
-        QColor foreground(const QWidget *widget);
-        QColor background(const QWidget *widget);
-        QColor opacify(const QWidget *widget, const QColor& in);
-        QPalette toolsPalette(const QWidget *widget);
-        QRect rect(const QWidget *w) const {
-            auto m = qobject_cast<const QMainWindow*>(w->window());
-            if (m)
-                return rect(m);
-            return QRect();
-        }
-        QRect rect(const QMainWindow *w) const {
-            auto nc = const_cast<QMainWindow*>(w);
-            return _rects[nc];
-        }
-        bool hasContents(const QWidget *w) const {
-            auto m = qobject_cast<QMainWindow*>(w->window());
-            if (m)
-                return hasContents(m);
-            return false;
-        }
-        bool hasContents(const QMainWindow *w) const {
-            auto nc = const_cast<QMainWindow*>(w);
-            return _toolsArea[nc]->widgets.length() > 0;
-        }
+        bool eventFilter(QObject* watched, QEvent *event) override;
 
-        bool widgetHasCorrectPaletteSet(const QWidget *widget);
+        QPalette toolsAreaPalette();
 
-    protected:
-        bool eventFilter(QObject *watched, QEvent *event) override;
+        void registerWidget(QWidget* widget);
+        void unregisterWidget(QWidget* widget);
 
-    Q_SIGNALS:
-        void toolbarUpdated();
-
-    public Q_SLOTS:
-        void recomputeRect(QMainWindow *w);
-        void setWindowMargins();
-        void rerenderWidgets();
-
-    private:
-        void registerWindow ( QWindow *window );
-        void registerAnimation( QWidget *widget );
-        bool animationRunning( const QWidget *widget );
-        void windowStateChanged( QWindow *window, bool active);
-        void windowActiveChanged( QWindow *window );
-        bool windowActive( QWindow *window );
-        QSet<QWidget*> _registeredWidgets;
-        QSet<QWindow*> _registeredWindows;
-        QList<QMetaObject::Connection> _connections;
-        QTimer* _timer;
-        Helper* _helper;
-
-        QMap<QMainWindow*,WidgetList*> _toolsArea;
-        WidgetList* getWidgetList(QMainWindow* win) {
-            if (!_toolsArea.contains(win)) {
-                auto list = new WidgetList;
-                _toolsArea[win] = list;
-                return list;
-            }
-            return _toolsArea[win];
-        }
-        QMap<QMainWindow*,QRect> _rects;
-        QMap<QWindow*,int> _semaphoreishes;
-        QMap<QWindow*,ToolsAreaAnimation> animationMap;
+        QRect toolsAreaRect(const QMainWindow* window);
     };
 }
 
