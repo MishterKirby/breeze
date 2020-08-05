@@ -59,7 +59,7 @@ namespace Breeze {
 
     bool ToolsAreaManager::tryRegisterToolBar(QPointer<QMainWindow> window, QPointer<QWidget> widget)
     {
-        Q_ASSERT(widget.isNull());
+        Q_ASSERT(!widget.isNull());
 
         QPointer<QToolBar> toolbar;
         if (!(toolbar = qobject_cast<QToolBar*>(widget))) return false;
@@ -74,7 +74,7 @@ namespace Breeze {
 
     void ToolsAreaManager::tryUnregisterToolBar(QPointer<QMainWindow> window, QPointer<QWidget> widget)
     {
-        Q_ASSERT(widget.isNull());
+        Q_ASSERT(!widget.isNull());
 
         QPointer<QToolBar> toolbar;
         if (!(toolbar = qobject_cast<QToolBar*>(widget))) return;
