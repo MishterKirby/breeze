@@ -136,10 +136,6 @@
       <default>true</default>
     </entry>
 
-    <entry name="ToolsAreaEnabled" type="Bool">
-      <default>true</default>
-    </entry>
-
     <!-- window dragging -->
     <entry name="WindowDragMode" type="Enum">
       <choices>
