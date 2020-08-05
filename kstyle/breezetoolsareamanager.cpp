@@ -36,7 +36,7 @@ namespace Breeze {
     {
         Q_ASSERT(window);
 
-        int itemHeight = 0;
+        int itemHeight = window->menuWidget() ? window->menuWidget()->height() : 0;
         for (auto item : _windows[const_cast<QMainWindow*>(window)]) {
             if (!item.isNull() && item->isVisible() && window->toolBarArea(item) == Qt::TopToolBarArea) {
                 itemHeight = qMax(item->mapTo(window, item->rect().bottomLeft()).y(), itemHeight);
