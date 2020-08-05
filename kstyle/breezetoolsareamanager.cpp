@@ -1,6 +1,7 @@
 #include "breezetoolsareamanager.h"
 
 #include <QMainWindow>
+#include <QMdiArea>
 #include <QMenuBar>
 #include <QObject>
 #include <QToolBar>
@@ -154,9 +155,11 @@ namespace Breeze {
         auto parent = ptr;
         QPointer<QMainWindow> mainWindow = nullptr;
         while (parent != nullptr) {
+            if (qobject_cast<QMdiArea*>(parent) || qobject_cast<QDockWidget*>(parent)) {
+                break;
+            }
             if (qobject_cast<QMainWindow*>(parent)) {
                 mainWindow = qobject_cast<QMainWindow*>(parent);
-                break;
             }
             parent = parent->parentWidget();
         } if (mainWindow == nullptr || !mergeToolBarHint) {
