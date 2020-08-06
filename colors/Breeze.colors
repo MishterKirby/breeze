@@ -46,6 +46,20 @@ ForegroundNormal=252,252,252
 ForegroundPositive=39,174,96
 ForegroundVisited=189,195,199
 
+[Colors:Header]
+BackgroundAlternate=239,240,241
+BackgroundNormal=71,80,87
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=189,195,199
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
 [Colors:Tooltip]
 BackgroundAlternate=77,77,77
 BackgroundNormal=35,38,39
@@ -106,6 +120,7 @@ ForegroundVisited=61,174,230
 ColorScheme=Breeze
 Name=Breeze
 Name[ar]=نسيم
+Name[az]=Breeze
 Name[bs]=Breeze
 Name[ca]=Brisa
 Name[ca@valencia]=Brisa
