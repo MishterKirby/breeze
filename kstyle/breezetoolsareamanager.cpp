@@ -63,6 +63,7 @@ namespace Breeze {
         if (!(toolbar = qobject_cast<QToolBar*>(widget))) return false;
 
         if (window->toolBarArea(toolbar) == Qt::TopToolBarArea) {
+            widget->setPalette(toolsAreaPalette());
             appendIfNotAlreadyExists(&_windows[window], toolbar);
             return true;
         }
@@ -78,6 +79,7 @@ namespace Breeze {
         if (!(toolbar = qobject_cast<QToolBar*>(widget))) return;
 
         if (window->toolBarArea(toolbar) != Qt::TopToolBarArea) {
+            widget->setPalette(window->palette());
             _windows[window].removeAll(toolbar);
         }
     }
@@ -99,11 +101,17 @@ namespace Breeze {
         }
 
         KColorScheme scheme(QPalette::Active, KColorScheme::Header, schemeFile);
+        KColorScheme inactiveScheme(QPalette::Inactive, KColorScheme::Header, schemeFile);
+        KColorScheme disabledScheme(QPalette::Disabled, KColorScheme::Header, schemeFile);
 
         palette = scheme.createApplicationPalette(schemeFile);
 
         palette.setBrush(QPalette::Active, QPalette::Window, scheme.background());
         palette.setBrush(QPalette::Active, QPalette::WindowText, scheme.foreground());
+        palette.setBrush(QPalette::Disabled, QPalette::Window, disabledScheme.background());
+        palette.setBrush(QPalette::Disabled, QPalette::WindowText, disabledScheme.foreground());
+        palette.setBrush(QPalette::Inactive, QPalette::Window, inactiveScheme.background());
+        palette.setBrush(QPalette::Inactive, QPalette::WindowText, inactiveScheme.foreground());
 
         return palette;
     }
