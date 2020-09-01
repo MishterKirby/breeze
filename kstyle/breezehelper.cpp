@@ -487,7 +487,8 @@ namespace Breeze
     //______________________________________________________________________________
     void Helper::renderFrame(
         QPainter* painter, const QRect& rect,
-        const QColor& color, const QColor& outline ) const
+        const QColor& color, const QColor& outline,
+        bool doubleRinged ) const
     {
 
         painter->setRenderHint( QPainter::Antialiasing );
@@ -512,6 +513,19 @@ namespace Breeze
         // set brush
         if( color.isValid() ) painter->setBrush( color );
         else painter->setBrush( Qt::NoBrush );
+
+        if ( doubleRinged ) {
+            painter->save();
+            {
+                auto rect2 = frameRect.adjusted( -2, -2, 2, 2 );
+                painter->setPen( Qt::NoPen );
+                painter->setBrush( outline );
+                painter->setOpacity( 0.4 );
+
+                painter->drawRoundedRect(rect2, radius*2, radius*2);
+            }
+            painter->restore();
+        }
 
         // render
         painter->drawRoundedRect( frameRect, radius, radius );
