@@ -3128,7 +3128,7 @@ namespace Breeze
 
             const auto background( isTitleWidget ? palette.color( widget->backgroundRole() ):QColor() );
             const auto outline( _helper->frameOutlineColor( palette, mouseOver, hasFocus, opacity, mode ) );
-            _helper->renderFrame( painter, rect, background, outline, hasFocus );
+            _helper->renderFrame( painter, rect, background, outline );
 
         }
 
