@@ -866,6 +866,8 @@ namespace Breeze
 
         if (qobject_cast<const QLineEdit*>(wid)) {
             rect.adjust(1, 1, -1, -1);
+        } else if (wid == nullptr) {
+            rect.adjust(Metrics::LineEdit::Margin, Metrics::LineEdit::Margin, -Metrics::LineEdit::Margin, -Metrics::LineEdit::Margin);
         }
 
         auto radius = _helper->frameRadius( PenWidth::NoPen, -1 );
