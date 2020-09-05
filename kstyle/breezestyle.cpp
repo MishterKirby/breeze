@@ -925,8 +925,10 @@ namespace Breeze
                 return true;
             }
 
-            painter->setPen(_toolsAreaManager->toolsAreaPalette().background().color());
-            painter->setBrush(_toolsAreaManager->toolsAreaPalette().background());
+            auto color = _toolsAreaManager->toolsAreaPalette().color(mw->isActiveWindow() ? QPalette::Normal : QPalette::Inactive, QPalette::Window);
+
+            painter->setPen(color);
+            painter->setBrush(color);
             painter->drawRect(rect);
 
             painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette()));
