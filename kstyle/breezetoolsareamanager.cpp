@@ -63,7 +63,7 @@ namespace Breeze {
         if (!(toolbar = qobject_cast<QToolBar*>(widget))) return false;
 
         if (window->toolBarArea(toolbar) == Qt::TopToolBarArea) {
-            widget->setPalette(toolsAreaPalette());
+            widget->setPalette(toolsAreaPalette().first);
             appendIfNotAlreadyExists(&_windows[window], toolbar);
             return true;
         }
@@ -84,13 +84,14 @@ namespace Breeze {
         }
     }
 
-    QPalette ToolsAreaManager::toolsAreaPalette()
+    QPair<QPalette,ToolsAreaPalette> ToolsAreaManager::toolsAreaPalette()
     {
         static QPalette palette = QPalette();
+        static ToolsAreaPalette fullPalette;
         const char* colorProperty = "KDE_COLOR_SCHEME_PATH";
 
         if (palette != QPalette()) {
-            return palette;
+            return qMakePair(palette, fullPalette);
         }
 
         KSharedConfigPtr schemeFile = KSharedConfig::openConfig();
@@ -100,20 +101,22 @@ namespace Breeze {
             schemeFile = KSharedConfig::openConfig(path);
         }
 
-        KColorScheme scheme(QPalette::Active, KColorScheme::Header, schemeFile);
-        KColorScheme inactiveScheme(QPalette::Inactive, KColorScheme::Header, schemeFile);
-        KColorScheme disabledScheme(QPalette::Disabled, KColorScheme::Header, schemeFile);
+        fullPalette = ToolsAreaPalette {
+            .active = KColorScheme(QPalette::Active, KColorScheme::Header, schemeFile),
+            .inactive = KColorScheme(QPalette::Inactive, KColorScheme::Header, schemeFile),
+            .disabled = KColorScheme(QPalette::Disabled, KColorScheme::Header, schemeFile)
+        };
 
-        palette = scheme.createApplicationPalette(schemeFile);
+        palette = KColorScheme::createApplicationPalette(schemeFile);
 
-        palette.setBrush(QPalette::Active, QPalette::Window, scheme.background());
-        palette.setBrush(QPalette::Active, QPalette::WindowText, scheme.foreground());
-        palette.setBrush(QPalette::Disabled, QPalette::Window, disabledScheme.background());
-        palette.setBrush(QPalette::Disabled, QPalette::WindowText, disabledScheme.foreground());
-        palette.setBrush(QPalette::Inactive, QPalette::Window, inactiveScheme.background());
-        palette.setBrush(QPalette::Inactive, QPalette::WindowText, inactiveScheme.foreground());
+        palette.setBrush(QPalette::Active, QPalette::Window, fullPalette.active.background());
+        palette.setBrush(QPalette::Active, QPalette::WindowText, fullPalette.active.foreground());
+        palette.setBrush(QPalette::Disabled, QPalette::Window, fullPalette.disabled.background());
+        palette.setBrush(QPalette::Disabled, QPalette::WindowText, fullPalette.disabled.foreground());
+        palette.setBrush(QPalette::Inactive, QPalette::Window, fullPalette.inactive.background());
+        palette.setBrush(QPalette::Inactive, QPalette::WindowText, fullPalette.inactive.foreground());
 
-        return palette;
+        return qMakePair(palette, fullPalette);
     }
 
     bool ToolsAreaManager::eventFilter(QObject *watched, QEvent *event)

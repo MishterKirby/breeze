@@ -7,6 +7,13 @@
 #include "breezehelper.h"
 
 namespace Breeze {
+    struct ToolsAreaPalette
+    {
+        KColorScheme active;
+        KColorScheme inactive;
+        KColorScheme disabled;
+    };
+
     class ToolsAreaManager: public QObject
     {
         Q_OBJECT
@@ -25,7 +32,7 @@ namespace Breeze {
 
         bool eventFilter(QObject* watched, QEvent *event) override;
 
-        QPalette toolsAreaPalette();
+        QPair<QPalette,ToolsAreaPalette> toolsAreaPalette();
 
         void registerWidget(QWidget* widget);
         void unregisterWidget(QWidget* widget);

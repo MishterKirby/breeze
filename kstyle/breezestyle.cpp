@@ -919,25 +919,26 @@ namespace Breeze
             auto rect = _toolsAreaManager->toolsAreaRect(mw);
 
             if (rect.height() == 0) {
-                painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette()));
+                painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette().first));
                 painter->drawLine(widget->rect().topLeft(), widget->rect().topRight());
                 painter->restore();
                 return true;
             }
 
-            auto color = _toolsAreaManager->toolsAreaPalette().color(mw->isActiveWindow() ? QPalette::Normal : QPalette::Inactive, QPalette::Window);
+            auto color = mw->isActiveWindow() ? _toolsAreaManager->toolsAreaPalette().second.active.background()
+                                              : _toolsAreaManager->toolsAreaPalette().second.inactive.background();
 
-            painter->setPen(color);
+            painter->setPen(Qt::transparent);
             painter->setBrush(color);
             painter->drawRect(rect);
 
-            painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette()));
+            painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette().first));
             painter->drawLine(rect.bottomLeft(), rect.bottomRight());
 
             painter->restore();
         } else if (auto dialog = qobject_cast<const QDialog*>(widget)) {
             const_cast<QDialog*>(dialog)->setContentsMargins(0,0,0,1);
-            painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette()));
+            painter->setPen(_helper->separatorColor(_toolsAreaManager->toolsAreaPalette().first));
             painter->drawLine(widget->rect().topLeft(), widget->rect().topRight());
         }
         return true;
