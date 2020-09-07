@@ -132,7 +132,7 @@ namespace Breeze {
         }
 
         if (QPointer<QMainWindow> mw = qobject_cast<QMainWindow*>(watched)) {
-            QChildEvent *ev;
+            QChildEvent *ev = nullptr;
             if (event->type() == QEvent::ChildAdded || event->type() == QEvent::ChildRemoved)
                 ev = static_cast<QChildEvent*>(event);
 
