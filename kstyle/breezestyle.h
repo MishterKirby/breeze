@@ -84,6 +84,9 @@ namespace Breeze
         //* widget unpolishing
         void unpolish( QWidget* ) override;
 
+        //* application polishing
+        void polish( QApplication* ) override;
+
         //* polish scrollarea
         void polishScrollArea( QAbstractScrollArea* );
 

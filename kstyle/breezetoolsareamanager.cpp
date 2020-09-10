@@ -10,16 +10,21 @@
 
 #include <KColorUtils>
 
-// DON'T MERGE THIS PATCH IF THIS IS STILL HERE
-// THIS IS SO THAT I CAN CHANGE WHETHER I WANT TO
-// RELY ON UNIFIEDTITLEANDTOOLBARONMAC FROM A
-// SINGLE PLACE
-
-#define mergeToolBarHint mainWindow->unifiedTitleAndToolBarOnMac()
-#define mergeToolBarHint true
+const char* colorProperty = "KDE_COLOR_SCHEME_PATH";
 
 namespace Breeze {
-    ToolsAreaManager::ToolsAreaManager(Helper *helper, QObject *parent) : QObject(parent), _helper(helper) {}
+    ToolsAreaManager::ToolsAreaManager(Helper *helper, QObject *parent) : QObject(parent), _helper(helper)
+    {
+        if (qApp && qApp->property(colorProperty).isValid()) {
+            auto path = qApp->property(colorProperty).toString();
+            _config = KSharedConfig::openConfig(path);
+        } else {
+            _config = KSharedConfig::openConfig();
+        }
+        _watcher = KConfigWatcher::create(_config);
+        connect(_watcher.data(), &KConfigWatcher::configChanged, this, &ToolsAreaManager::configUpdated);
+        configUpdated();
+    }
 
     ToolsAreaManager::~ToolsAreaManager() {}
 
@@ -31,6 +36,20 @@ namespace Breeze {
             }
         }
         list->append(item);
+    }
+
+    void ToolsAreaManager::registerApplication(QApplication *application)
+    {
+        _listener = new AppListener;
+        _listener->manager = this;
+        if (application->property(colorProperty).isValid()) {
+            auto path = application->property(colorProperty).toString();
+            _config = KSharedConfig::openConfig(path);
+            _watcher = KConfigWatcher::create(_config);
+            connect(_watcher.data(), &KConfigWatcher::configChanged, this, &ToolsAreaManager::configUpdated);
+        }
+        application->installEventFilter(_listener);
+        configUpdated();
     }
 
     QRect ToolsAreaManager::toolsAreaRect(const QMainWindow *window)
@@ -84,39 +103,65 @@ namespace Breeze {
         }
     }
 
-    QPair<QPalette,ToolsAreaPalette> ToolsAreaManager::toolsAreaPalette()
+    void ToolsAreaManager::configUpdated()
     {
-        static QPalette palette = QPalette();
-        static ToolsAreaPalette fullPalette;
-        const char* colorProperty = "KDE_COLOR_SCHEME_PATH";
-
-        if (palette != QPalette()) {
-            return qMakePair(palette, fullPalette);
-        }
-
-        KSharedConfigPtr schemeFile = KSharedConfig::openConfig();
-
-        if (qApp && qApp->property(colorProperty).isValid()) {
-            auto path = qApp->property(colorProperty).toString();
-            schemeFile = KSharedConfig::openConfig(path);
-        }
-
-        fullPalette = ToolsAreaPalette {
-            .active = KColorScheme(QPalette::Active, KColorScheme::Header, schemeFile),
-            .inactive = KColorScheme(QPalette::Inactive, KColorScheme::Header, schemeFile),
-            .disabled = KColorScheme(QPalette::Disabled, KColorScheme::Header, schemeFile)
+        _fullPalette = ToolsAreaPalette {
+            .active = KColorScheme(QPalette::Active, KColorScheme::Header, _config),
+            .inactive = KColorScheme(QPalette::Inactive, KColorScheme::Header, _config),
+            .disabled = KColorScheme(QPalette::Disabled, KColorScheme::Header, _config)
         };
 
-        palette = KColorScheme::createApplicationPalette(schemeFile);
+        _palette = KColorScheme::createApplicationPalette(_config);
 
-        palette.setBrush(QPalette::Active, QPalette::Window, fullPalette.active.background());
-        palette.setBrush(QPalette::Active, QPalette::WindowText, fullPalette.active.foreground());
-        palette.setBrush(QPalette::Disabled, QPalette::Window, fullPalette.disabled.background());
-        palette.setBrush(QPalette::Disabled, QPalette::WindowText, fullPalette.disabled.foreground());
-        palette.setBrush(QPalette::Inactive, QPalette::Window, fullPalette.inactive.background());
-        palette.setBrush(QPalette::Inactive, QPalette::WindowText, fullPalette.inactive.foreground());
+        _palette.setBrush(QPalette::Active, QPalette::Window, _fullPalette.active.background());
+        _palette.setBrush(QPalette::Active, QPalette::WindowText, _fullPalette.active.foreground());
+        _palette.setBrush(QPalette::Disabled, QPalette::Window, _fullPalette.disabled.background());
+        _palette.setBrush(QPalette::Disabled, QPalette::WindowText, _fullPalette.disabled.foreground());
+        _palette.setBrush(QPalette::Inactive, QPalette::Window, _fullPalette.inactive.background());
+        _palette.setBrush(QPalette::Inactive, QPalette::WindowText, _fullPalette.inactive.foreground());
 
-        return qMakePair(palette, fullPalette);
+        for (auto window : _windows) {
+            for (auto tb : window) {
+                if (!tb.isNull()) {
+                    tb->setPalette(_palette);
+                }
+            }
+        }
+    }
+
+    QPair<QPalette,ToolsAreaPalette> ToolsAreaManager::toolsAreaPalette()
+    {
+        return qMakePair(_palette, _fullPalette);
+    }
+
+    bool AppListener::eventFilter(QObject *watched, QEvent *event)
+    {
+        Q_ASSERT(watched);
+        Q_ASSERT(event);
+
+        if (watched != qApp) {
+            return false;
+        }
+
+        if (event->type() == QEvent::DynamicPropertyChange) {
+            if (watched != qApp) {
+                return false;
+            }
+            auto ev = static_cast<QDynamicPropertyChangeEvent*>(event);
+            if (ev->propertyName() == colorProperty) {
+                if (qApp && qApp->property(colorProperty).isValid()) {
+                    auto path = qApp->property(colorProperty).toString();
+                    manager->_config = KSharedConfig::openConfig(path);
+                } else {
+                    manager->_config = KSharedConfig::openConfig();
+                }
+                manager->_watcher = KConfigWatcher::create(manager->_config);
+                connect(manager->_watcher.data(), &KConfigWatcher::configChanged, manager, &ToolsAreaManager::configUpdated);
+                manager->configUpdated();
+            }
+        }
+
+        return false;
     }
 
     bool ToolsAreaManager::eventFilter(QObject *watched, QEvent *event)
@@ -173,7 +218,7 @@ namespace Breeze {
                 mainWindow = qobject_cast<QMainWindow*>(parent);
             }
             parent = parent->parentWidget();
-        } if (mainWindow == nullptr || !mergeToolBarHint) {
+        } if (mainWindow == nullptr) {
             return;
         }
 
@@ -197,7 +242,7 @@ namespace Breeze {
                     break;
                 }
                 parent = parent->parentWidget();
-            } if (mainWindow == nullptr || !mergeToolBarHint) {
+            } if (mainWindow == nullptr) {
                 return;
             }
             _windows[mainWindow].removeAll(toolbar);

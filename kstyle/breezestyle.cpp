@@ -403,6 +403,12 @@ namespace Breeze
     }
 
     //______________________________________________________________
+    void Style::polish( QApplication *application )
+    {
+        _toolsAreaManager->registerApplication(application);
+    }
+
+    //______________________________________________________________
     void Style::polishScrollArea( QAbstractScrollArea* scrollArea )
     {
 
