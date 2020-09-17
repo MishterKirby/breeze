@@ -102,34 +102,6 @@ ForegroundNormal=239,240,241
 ForegroundPositive=46,204,113
 ForegroundVisited=61,174,230
 
-[Colors:Header]
-BackgroundAlternate=228,229,231
-BackgroundNormal=221,222,224
-DecorationFocus=61,174,233
-DecorationHover=147,206,233
-ForegroundActive=61,174,233
-ForegroundInactive=127,140,141
-ForegroundLink=41,128,185
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=35,38,39
-ForegroundPositive=39,174,96
-ForegroundVisited=127,140,141
-
-[Colors:Header][Inactive]
-BackgroundAlternate=239,240,241
-BackgroundNormal=232,233,234
-DecorationFocus=104,161,190
-DecorationHover=169,198,211
-ForegroundActive=104,161,190
-ForegroundInactive=130,137,138
-ForegroundLink=77,121,149
-ForegroundNegative=181,105,113
-ForegroundNeutral=185,120,62
-ForegroundNormal=36,37,38
-ForegroundPositive=73,140,101
-ForegroundVisited=130,137,138
-
 [General]
 ColorScheme=Breeze
 Name=Breeze
@@ -183,3 +155,11 @@ shadeSortColumn=true
 
 [KDE]
 contrast=4
+
+[WM]
+activeBackground=71,80,87
+activeBlend=252,252,252
+activeForeground=252,252,252
+inactiveBackground=239,240,241
+inactiveBlend=75,71,67
+inactiveForeground=189,195,199
